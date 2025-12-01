@@ -1,0 +1,36 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model UserProfile {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+
+  // Basic profile
+  name            String?
+  email           String?
+  githubUsername  String?
+  avatarUrl       String?
+
+  // Settings
+  theme           String?  @default("light")
+
+  // API & Integrations
+  claudeApiKey    String?
+  githubToken     String?
+  modelEndpoint   String?
+
+  // Prediction / AI Settings
+  riskThreshold       Float?  @default(0.5)
+  enableLlmReview     Boolean @default(false)
+  enableMlPrediction  Boolean @default(false)
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
