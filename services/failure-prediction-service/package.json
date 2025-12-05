@@ -1,0 +1,19 @@
+{
+  "name": "ml-prediction-api",
+  "version": "1.0.0",
+  "main": "src/main.ts",
+  "scripts": {
+    "start": "ts-node src/main.ts",
+    "dev": "nodemon src/main.ts"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "python-shell": "^5.0.0",
+    "body-parser": "^1.20.2"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.2",
+    "nodemon": "^3.1.0"
+  }
+}
