@@ -1,0 +1,26 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Prediction {
+  id                 Int     @id @default(autoincrement())
+  timestamp          DateTime
+  developer          String
+  moduleType         String
+  linesAdded         Int
+  linesDeleted       Int
+  filesChanged       Int
+  avgFunctionComplexity Float
+  codeCoverageChange Float
+  buildDuration      Float
+  containsTestChanges Boolean
+  previousFailureRate Float
+  predictedFailure   Boolean
+  failureProbability Float
+  createdAt          DateTime @default(now())
+}

@@ -1,21 +1,37 @@
-import { PythonShell } from "python-shell";
+import { spawn } from "child_process";
+import path from "path";
 
 export function runPythonPredict(input: any): Promise<any> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const results = await PythonShell.run("src/model/predict.py", {
-        args: [JSON.stringify(input)]
-      });
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(__dirname, "..", "model", "predict.py");
 
-      const output = results?.[0];
+    const py = spawn("python", ["-u", scriptPath]);
 
-      if (!output) {
-        return reject(new Error("No output from Python script"));
+    let output = "";
+    let errorOutput = "";
+
+    py.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    py.stderr.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+
+    py.on("close", (code) => {
+      if (code !== 0) {
+        return reject(new Error(`Python exited with code ${code}: ${errorOutput}`));
       }
 
-      resolve(JSON.parse(output));
-    } catch (err) {
-      reject(err);
-    }
+      try {
+        resolve(JSON.parse(output));
+      } catch (e) {
+        reject(e);
+      }
+    });
+
+    // Write input to python
+    py.stdin.write(JSON.stringify(input));
+    py.stdin.end();
   });
 }
