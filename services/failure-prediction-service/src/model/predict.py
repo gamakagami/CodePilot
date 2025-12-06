@@ -3,6 +3,7 @@ import sys
 import json
 import pickle
 import pandas as pd
+import numpy as np
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -12,13 +13,35 @@ encoders = pickle.load(open(os.path.join(BASE_DIR, "encoders.pkl"), "rb"))
 def predict(input_data):
     df = pd.DataFrame([input_data])
 
+    # Convert timestamp
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df["timestamp"] = df["timestamp"].astype("int64") // 10**9
 
-    df["developer"] = encoders["developer"].transform(df["developer"])
-    df["module_type"] = encoders["module_type"].transform(df["module_type"])
+    # Handle unknown developers - map to default value
+    dev_encoder = encoders["developer"]
+    developer_value = df["developer"].iloc[0]
+    
+    if developer_value not in dev_encoder.classes_:
+        # Use the most common class (index 0) or a default
+        print(f"Warning: Unknown developer '{developer_value}', using default encoding", file=sys.stderr)
+        df["developer"] = 0  # Default to first encoded value
+    else:
+        df["developer"] = dev_encoder.transform(df["developer"])
 
+    # Handle unknown module types
+    module_encoder = encoders["module_type"]
+    module_value = df["module_type"].iloc[0]
+    
+    if module_value not in module_encoder.classes_:
+        print(f"Warning: Unknown module_type '{module_value}', using default encoding", file=sys.stderr)
+        df["module_type"] = 0  # Default to first encoded value
+    else:
+        df["module_type"] = module_encoder.transform(df["module_type"])
+
+    # Convert to float array for model
     features = df.values.astype(float)
+    
+    # Predict
     prob = model.predict_proba(features)[0][1]
     label = int(prob >= 0.5)
 
