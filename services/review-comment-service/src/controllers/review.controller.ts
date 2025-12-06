@@ -4,19 +4,40 @@ import { reviewService } from "../services/review.service";
 export const reviewController = {
   async generateReview(req: Request, res: Response) {
     try {
-      const { code, language } = req.body;
+      const { analysis, prediction } = req.body;
 
-      if (!code) {
-        return res.status(400).json({ error: "Code is required" });
+      // Validate required fields
+      if (!analysis || !prediction) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Missing required fields: 'analysis' and 'prediction' are required" 
+        });
       }
 
-      const result = await reviewService.generateReviewComments({ code, language });
+      // Validate analysis structure
+      if (!analysis.metrics || !analysis.mernPatterns) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid analysis structure"
+        });
+      }
 
-      res.json({ review: result });
+      const review = await reviewService.generateReview({
+        analysis,
+        prediction
+      });
 
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Failed to generate review comments" });
+      res.json({
+        success: true,
+        data: review
+      });
+
+    } catch (error: any) {
+      console.error("Review generation error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message || "Failed to generate review" 
+      });
     }
   }
 };
