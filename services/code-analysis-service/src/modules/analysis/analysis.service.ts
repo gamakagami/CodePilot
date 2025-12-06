@@ -26,6 +26,28 @@ export interface SimilarCode {
   metadata?: any;
 }
 
+export interface MERNPatterns {
+  hasErrorHandling: boolean;
+  hasValidation: boolean;
+  usesMongoDB: boolean;
+  usesExpress: boolean;
+  potentialIssues: string[];
+}
+
+export interface PredictionFeatures {
+  timestamp: string;
+  developer: string;
+  module_type: string;
+  lines_added: number;
+  lines_deleted: number;
+  files_changed: number;
+  avg_function_complexity: number;
+  code_coverage_change: number;
+  build_duration: number;
+  contains_test_changes: number;
+  previous_failure_rate: number;
+}
+
 export interface CodeAnalysisResult {
   fileId: string;
   timestamp: string;
@@ -45,16 +67,26 @@ export interface CodeAnalysisResult {
   similarPatterns: SimilarCode[];
   
   // MERN-specific patterns
-  mernPatterns: {
-    hasErrorHandling: boolean;
-    hasValidation: boolean;
-    usesMongoDB: boolean;
-    usesExpress: boolean;
-    potentialIssues: string[];
-  };
+  mernPatterns: MERNPatterns;
 
   // Analysis warnings (non-critical errors)
   warnings: string[];
+
+  // 🆕 Ready-to-use prediction features
+  predictionFeatures: PredictionFeatures;
+}
+
+export interface AnalysisInput {
+  code: string;
+  fileId?: string;
+  // Metadata for prediction
+  developer?: string;
+  linesAdded?: number;
+  linesDeleted?: number;
+  filesChanged?: number;
+  codeCoverageChange?: number;
+  buildDuration?: number;
+  previousFailureRate?: number;
 }
 
 class AnalysisService {
@@ -68,15 +100,16 @@ class AnalysisService {
     this.embedService = new EmbeddingService();
   }
 
-  async analyze(code: string, fileId: string = "temp_file"): Promise<CodeAnalysisResult> {
+  async analyze(input: AnalysisInput): Promise<CodeAnalysisResult> {
     const warnings: string[] = [];
+    const fileId = input.fileId || `file_${Date.now()}`;
     
     console.log(`🔍 Starting analysis for ${fileId}...`);
 
     // Step 1: Parse code structure
     let parsed: any;
     try {
-      parsed = await this.parserService.parseCode(code);
+      parsed = await this.parserService.parseCode(input.code);
       console.log(`✅ Parsed: ${parsed.functions.length} functions, ${parsed.imports.length} imports`);
     } catch (err: any) {
       console.error("❌ Parse error:", err);
@@ -125,7 +158,7 @@ class AnalysisService {
     // Step 3: Calculate metrics
     let metrics: CodeMetrics;
     try {
-      metrics = this.calculateMetrics(code, parsed);
+      metrics = this.calculateMetrics(input.code, parsed);
       console.log(`✅ Metrics calculated: ${metrics.functionCount} functions, complexity: ${metrics.cyclomaticComplexity}`);
     } catch (err: any) {
       console.error("❌ Metrics calculation error:", err);
@@ -143,7 +176,7 @@ class AnalysisService {
     let similarPatterns: SimilarCode[] = [];
     try {
       console.log(`🔍 Searching for similar patterns in Pinecone...`);
-      const results = await this.embedService.searchSimilar(code, 5);
+      const results = await this.embedService.searchSimilar(input.code, 5);
       similarPatterns = results.map(m => ({
         id: m.id,
         score: m.score || 0,
@@ -163,7 +196,7 @@ class AnalysisService {
     // Step 5: Store embedding for future similarity searches
     try {
       console.log(`💾 Storing embedding for ${fileId}...`);
-      await this.embedService.storeEmbedding(fileId, code);
+      await this.embedService.storeEmbedding(fileId, input.code);
       console.log(`✅ Stored embedding for ${fileId}`);
     } catch (err: any) {
       console.error("❌ Pinecone storage error:", err);
@@ -176,9 +209,9 @@ class AnalysisService {
     }
 
     // Step 6: MERN-specific pattern detection
-    let mernPatterns: CodeAnalysisResult['mernPatterns'];
+    let mernPatterns: MERNPatterns;
     try {
-      mernPatterns = this.detectMERNPatterns(code, parsed);
+      mernPatterns = this.detectMERNPatterns(input.code, parsed);
       console.log(`✅ MERN analysis: ${mernPatterns.potentialIssues.length} issues detected`);
     } catch (err: any) {
       console.error("❌ MERN pattern detection error:", err);
@@ -192,11 +225,23 @@ class AnalysisService {
       };
     }
 
+    // Step 7: 🆕 Build prediction features
+    const predictionFeatures = this.buildPredictionFeatures(
+      input,
+      fileId,
+      metrics,
+      mernPatterns,
+      parsed
+    );
+    console.log(`✅ Prediction features ready: module=${predictionFeatures.module_type}`);
+
     console.log(`✅ Analysis complete with ${warnings.length} warnings`);
+
+    const timestamp = new Date().toISOString();
 
     return {
       fileId,
-      timestamp: new Date().toISOString(),
+      timestamp,
       ast: parsed.ast,
       functions: parsed.functions,
       imports: parsed.imports,
@@ -204,8 +249,87 @@ class AnalysisService {
       dependencies,
       similarPatterns,
       mernPatterns,
-      warnings
+      warnings,
+      predictionFeatures
     };
+  }
+
+  /**
+   * 🆕 Build features ready for ML prediction
+   */
+  private buildPredictionFeatures(
+    input: AnalysisInput,
+    fileId: string,
+    metrics: CodeMetrics,
+    mernPatterns: MERNPatterns,
+    parsed: any
+  ): PredictionFeatures {
+    // Detect module type
+    const moduleType = this.inferModuleType(parsed.imports, mernPatterns);
+
+    // Detect test changes
+    const containsTestChanges = this.detectTestChanges(fileId, parsed.imports);
+
+    // Use provided values or defaults
+    return {
+      timestamp: new Date().toISOString(),
+      developer: input.developer || "unknown",
+      module_type: moduleType,
+      lines_added: input.linesAdded || metrics.totalLines,
+      lines_deleted: input.linesDeleted || 0,
+      files_changed: input.filesChanged || 1,
+      avg_function_complexity: metrics.cyclomaticComplexity,
+      code_coverage_change: input.codeCoverageChange || 0,
+      build_duration: input.buildDuration || 0,
+      contains_test_changes: containsTestChanges ? 1 : 0,
+      previous_failure_rate: input.previousFailureRate || 0.1
+    };
+  }
+
+  /**
+   * Infer module type from imports and patterns
+   */
+  private inferModuleType(imports: string[], mernPatterns: MERNPatterns): string {
+    const allImports = imports.join(" ").toLowerCase();
+
+    if (mernPatterns.usesExpress || /express|router|middleware/.test(allImports)) {
+      return "backend";
+    }
+
+    if (/react|vue|angular|component/.test(allImports)) {
+      return "frontend";
+    }
+
+    if (mernPatterns.usesMongoDB || /mongoose|prisma|typeorm/.test(allImports)) {
+      return "database";
+    }
+
+    if (/axios|fetch|api|http/.test(allImports)) {
+      return "api";
+    }
+
+    if (/auth|jwt|bcrypt|passport/.test(allImports)) {
+      return "auth";
+    }
+
+    return "general";
+  }
+
+  /**
+   * Detect if code contains test changes
+   */
+  private detectTestChanges(fileId: string, imports: string[]): boolean {
+    // Check if file is a test file
+    if (/\.test\.|\.spec\.|__tests__|__mocks__/.test(fileId)) {
+      return true;
+    }
+
+    // Check imports for test frameworks
+    const testImports = imports.filter(imp =>
+      /jest|mocha|chai|vitest|testing-library/.test(imp)
+    );
+
+    return testImports.length > 0;
   }
 
   private async analyzeDependencies(fileId: string): Promise<DependencyInfo> {
@@ -243,7 +367,6 @@ class AnalysisService {
       ? Math.round(totalFunctionLines / functionCount)
       : 0;
 
-    // Simple cyclomatic complexity: count if/else/for/while/case/catch
     const complexity = this.calculateCyclomaticComplexity(code);
 
     return {
@@ -265,10 +388,10 @@ class AnalysisService {
       /\bcatch\s*\(/g,
       /\|\|/g,
       /&&/g,
-      /\?/g  // ternary operator
+      /\?/g
     ];
 
-    let complexity = 1; // Base complexity
+    let complexity = 1;
     
     for (const pattern of patterns) {
       const matches = code.match(pattern);
@@ -280,43 +403,34 @@ class AnalysisService {
     return complexity;
   }
 
-  private detectMERNPatterns(code: string, parsed: any): CodeAnalysisResult['mernPatterns'] {
+  private detectMERNPatterns(code: string, parsed: any): MERNPatterns {
     const potentialIssues: string[] = [];
 
-    // Check for error handling in async functions
     const hasErrorHandling = this.checkErrorHandling(code);
     if (!hasErrorHandling) {
       potentialIssues.push("Missing try-catch in async functions");
     }
 
-    // Check for input validation
     const hasValidation = /validator|validate|joi|zod|yup/.test(code);
     if (!hasValidation && /req\.body/.test(code)) {
       potentialIssues.push("Possible missing input validation on req.body");
     }
 
-    // Check MongoDB usage
     const usesMongoDB = /mongoose|mongodb|Schema|Model/.test(code);
-
-    // Check Express usage
     const usesExpress = /express|Router|app\.(get|post|put|delete)/.test(code);
 
-    // Check for SQL injection vulnerabilities (in case using raw queries)
     if (/query\(.*\$\{.*\}/.test(code) || /query\(.*\+.*\+/.test(code)) {
       potentialIssues.push("Potential SQL/NoSQL injection vulnerability");
     }
 
-    // Check for missing status codes in responses
     if (/res\.(send|json)\(/.test(code) && !/res\.status\(\d+\)/.test(code)) {
       potentialIssues.push("Response without explicit status code");
     }
 
-    // Check for console.log in production code
     if (/console\.log/.test(code)) {
       potentialIssues.push("Contains console.log statements (should use logger)");
     }
 
-    // Check for hardcoded credentials
     if (/(password|apikey|secret|token)\s*=\s*["'][^"']+["']/.test(code.toLowerCase())) {
       potentialIssues.push("Possible hardcoded credentials detected");
     }
@@ -331,7 +445,6 @@ class AnalysisService {
   }
 
   private checkErrorHandling(code: string): boolean {
-    // Check if async functions have try-catch
     const asyncFunctions = code.match(/async\s+\w+[^{]*{([^}]+)}/g) || [];
     
     for (const fn of asyncFunctions) {
@@ -344,7 +457,6 @@ class AnalysisService {
   }
 
   private extractImportPath(importStatement: string): string | null {
-    // Extract path from: import ... from "path"
     const match = importStatement.match(/from\s+["']([^"']+)["']/);
     return match ? match[1] : null;
   }

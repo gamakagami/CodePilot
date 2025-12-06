@@ -4,7 +4,17 @@ import analysisService from "./analysis.service";
 class AnalysisController {
   analyze = async (req: Request, res: Response) => {
     try {
-      const { code, fileId } = req.body;
+      const { 
+        code, 
+        fileId,
+        developer,
+        linesAdded,
+        linesDeleted,
+        filesChanged,
+        codeCoverageChange,
+        buildDuration,
+        previousFailureRate
+      } = req.body;
 
       if (!code) {
         return res.status(400).json({ 
@@ -12,10 +22,17 @@ class AnalysisController {
         });
       }
 
-      // Use provided fileId or generate one
-      const id = fileId || `file_${Date.now()}`;
-
-      const result = await analysisService.analyze(code, id);
+      const result = await analysisService.analyze({
+        code,
+        fileId,
+        developer,
+        linesAdded,
+        linesDeleted,
+        filesChanged,
+        codeCoverageChange,
+        buildDuration,
+        previousFailureRate
+      });
       
       res.json({
         success: true,
