@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { proxyRequest } from "../utils/proxy";
+import { handleGitHubWebhook } from '../webhooks/githubWebhook';
 
 const router = Router();
 
@@ -30,5 +31,7 @@ router.use("/pullrequests", (req, res) =>
 router.use("/analytics", (req, res) =>
   proxyRequest(req, res, `${USER_URL}/analytics${req.path}`)
 );
+
+router.post('/webhooks/github', handleGitHubWebhook);
 
 export default router;
