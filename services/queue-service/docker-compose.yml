@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Queue Service (Qstash)
+  queue-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: queue-service-api
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    environment:
+      # Server
+      PORT: ${PORT:-3000}
+      NODE_ENV: ${NODE_ENV:-production}
+      
+      # Qstash Configuration
+      BASE_URL: ${BASE_URL:-http://localhost:3000}
+      QSTASH_URL: ${QSTASH_URL}
+      QSTASH_TOKEN: ${QSTASH_TOKEN}
+      QSTASH_CURRENT_SIGNING_KEY: ${QSTASH_CURRENT_SIGNING_KEY}
+      QSTASH_NEXT_SIGNING_KEY: ${QSTASH_NEXT_SIGNING_KEY}
+      
+      # Microservice URLs
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:5000}
+      CODE_ANALYSIS_SERVICE_URL: ${CODE_ANALYSIS_SERVICE_URL:-http://analysis-service:7000}
+      REVIEW_SERVICE_URL: ${REVIEW_SERVICE_URL:-http://review-service:6000}
+      FAILURE_PREDICTION_SERVICE_URL: ${FAILURE_PREDICTION_SERVICE_URL:-http://prediction-service:8000}
+      
+      # Retry Configuration
+      MAX_RETRIES: ${MAX_RETRIES:-3}
+      RETRY_DELAY: ${RETRY_DELAY:-2000}
+      
+      # GitHub
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET}
+      
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

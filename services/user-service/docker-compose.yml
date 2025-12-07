@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: user-service-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-userservice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-userservice_password}
+      POSTGRES_DB: ${POSTGRES_DB:-userservice_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-userservice}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # User Service API
+  user-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-service-api
+    ports:
+      - "${PORT:-4002}:${PORT:-4002}"
+    environment:
+      PORT: ${PORT:-4002}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      NODE_ENV: ${NODE_ENV:-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./prisma:/app/prisma
+    command: sh -c "npx prisma migrate deploy && node dist/main.js"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
