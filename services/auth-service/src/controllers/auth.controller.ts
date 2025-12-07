@@ -24,7 +24,7 @@ export const githubCallback = async (req: Request, res: Response) => {
   const token = jwtService.generateToken(user);
 
   // redirect to frontend with token
-  return res.redirect(`http://localhost:5173/auth/success?token=${token}`);
+  return res.redirect(`http://localhost:3000/auth/success?token=${token}`);
 };
 
 export const getCurrentUser = async (req: any, res: Response) => {

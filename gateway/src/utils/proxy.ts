@@ -29,13 +29,19 @@ export async function proxyRequest(
       headers,
       params: req.query,
       timeout: 5000,
-      maxRedirects: 5,
+      maxRedirects: 0, // Don't follow redirects - let browser handle them
       validateStatus: (status) => status < 500 // Don't throw on 3xx redirects
     });
 
     // Handle redirects (like GitHub OAuth)
     if (response.status >= 300 && response.status < 400 && response.headers.location) {
       return res.redirect(response.status, response.headers.location);
+    }
+
+    // Handle HTML responses (like redirects that were followed)
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      return res.status(response.status).send(response.data);
     }
 
     return res.status(response.status).json(response.data);
