@@ -10,7 +10,7 @@ export const getGitHubUser = async (code: string) => {
       client_id: env.GITHUB_CLIENT_ID,
       client_secret: env.GITHUB_CLIENT_SECRET,
       code,
-      redirect_uri: env.GITHUB_REDIRECT_URI
+      redirect_uri: env.GITHUB_REDIRECT_URI,
     },
     { headers: { Accept: "application/json" } }
   );
@@ -19,20 +19,21 @@ export const getGitHubUser = async (code: string) => {
 
   // 2. Fetch GitHub User Info
   const userRes = await axios.get("https://api.github.com/user", {
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   const emailRes = await axios.get("https://api.github.com/user/emails", {
-    headers: { Authorization: `Bearer ${accessToken}` }
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   const primaryEmail = emailRes.data.find((e: any) => e.primary)?.email;
 
   return {
     githubId: userRes.data.id.toString(),
-    name: userRes.data.name,
+    name:
+      userRes.data.name || userRes.data.login || primaryEmail || "GitHub User",
     avatarUrl: userRes.data.avatar_url,
     email: primaryEmail,
-    githubAccessToken: accessToken
+    githubAccessToken: accessToken,
   };
 };
