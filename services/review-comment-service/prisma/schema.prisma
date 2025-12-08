@@ -1,0 +1,113 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// =======================
+/// Main Review Table
+/// =======================
+model Review {
+  id           String        @id @default(uuid())
+  fileId       String        // Same file analyzed by analysis-service
+
+  summary      String
+  riskLevel    RiskLevel
+  shouldMerge  Boolean
+
+  issues       Issue[]       // Relation to Issue table
+  recommendations Recommendation[] // Relation to Recommendation table
+
+  codeQuality  CodeQuality?  // 1-1 relation
+
+  failurePrediction FailurePrediction? // 1-1 relation
+  generatedAt   DateTime     @default(now())
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+/// =======================
+/// Issues (multiple)
+/// =======================
+model Issue {
+  id          String       @id @default(uuid())
+  reviewId    String
+  review      Review       @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  severity    Severity
+  category    Category
+
+  title       String
+  description String
+  location    String?       // optional
+  suggestion  String?       // optional
+}
+
+/// =======================
+/// Recommendations
+/// =======================
+model Recommendation {
+  id        String   @id @default(uuid())
+  reviewId  String
+  review    Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  text      String
+}
+
+/// =======================
+/// Code Quality Block
+/// =======================
+model CodeQuality {
+  id          String     @id @default(uuid())
+  reviewId    String     @unique
+  review      Review     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  score       Int
+
+  strengths   String[]   // TEXT[] in Postgres
+  weaknesses  String[]   // TEXT[]
+}
+
+/// =======================
+/// Failure Prediction Info
+/// =======================
+model FailurePrediction {
+  id                   String   @id @default(uuid())
+  reviewId             String   @unique
+  review               Review   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  predictedFailure     Float
+  failureProbability   Float
+  willFail             Boolean
+  confidence           String
+}
+
+/// =======================
+/// ENUMS
+/// =======================
+enum Severity {
+  critical
+  high
+  medium
+  low
+}
+
+enum Category {
+  bug
+  security
+  performance
+  maintainability
+  style
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+}
