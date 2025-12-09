@@ -1,5 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
-import { Code2, LayoutDashboard, GitPullRequest, BarChart3, Settings, LogOut, Moon, Sun } from "lucide-react";
+import {
+  Code2,
+  LayoutDashboard,
+  GitPullRequest,
+  BarChart3,
+  Settings,
+  LogOut,
+  Moon,
+  Sun,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -38,10 +47,30 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   };
 
   const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-    { icon: GitPullRequest, label: "Pull Requests", href: "/dashboard" },
-    { icon: BarChart3, label: "Insights", href: "/insights" },
-    { icon: Settings, label: "Settings", href: "/settings" },
+    {
+      icon: LayoutDashboard,
+      label: "Dashboard",
+      href: "/dashboard",
+      match: (path: string) => path === "/dashboard",
+    },
+    {
+      icon: GitPullRequest,
+      label: "Pull Requests",
+      href: "/pr/1",
+      match: (path: string) => path.startsWith("/pr"),
+    },
+    {
+      icon: BarChart3,
+      label: "Insights",
+      href: "/insights",
+      match: (path: string) => path.startsWith("/insights"),
+    },
+    {
+      icon: Settings,
+      label: "Settings",
+      href: "/settings",
+      match: (path: string) => path.startsWith("/settings"),
+    },
   ];
 
   return (
@@ -52,7 +81,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <div className="flex h-16 items-center justify-between">
             <Link to="/dashboard" className="flex items-center space-x-2">
               <Code2 className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold text-foreground">CodePilot</span>
+              <span className="text-xl font-bold text-foreground">
+                CodePilot
+              </span>
             </Link>
 
             <div className="flex items-center space-x-4">
@@ -71,7 +102,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                  <Button
+                    variant="ghost"
+                    className="relative h-9 w-9 rounded-full"
+                  >
                     <Avatar className="h-9 w-9">
                       <AvatarImage src="" alt="User" />
                       <AvatarFallback className="bg-primary text-primary-foreground">
@@ -84,7 +118,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium">Developer</p>
-                      <p className="text-xs text-muted-foreground">dev@example.com</p>
+                      <p className="text-xs text-muted-foreground">
+                        dev@example.com
+                      </p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -95,7 +131,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive">
+                  <DropdownMenuItem
+                    onClick={handleLogout}
+                    className="cursor-pointer text-destructive"
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
                   </DropdownMenuItem>
@@ -112,7 +151,9 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           <aside className="w-64 flex-shrink-0 hidden lg:block">
             <nav className="space-y-1 sticky top-24">
               {navItems.map((item) => {
-                const isActive = location.pathname === item.href;
+                const isActive = item.match
+                  ? item.match(location.pathname)
+                  : location.pathname === item.href;
                 return (
                   <Link
                     key={item.href}
@@ -133,9 +174,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </aside>
 
           {/* Main Content */}
-          <main className="flex-1 min-w-0">
-            {children}
-          </main>
+          <main className="flex-1 min-w-0">{children}</main>
         </div>
       </div>
     </div>
