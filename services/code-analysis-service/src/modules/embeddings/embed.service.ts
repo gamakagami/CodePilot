@@ -1,7 +1,7 @@
 import { embedIndex } from "../../utils/pinecone";
 import { CohereClient } from "cohere-ai";
 
-const cohere = new CohereClient({
+export const cohere = new CohereClient({
   token: process.env.COHERE_API_KEY,
 });
 

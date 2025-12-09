@@ -27,6 +27,11 @@
     "typescript": "^5.3.3"
   },
   "devDependencies": {
+    "@jest/globals": "^30.2.0",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0"
   }
 }
