@@ -30,10 +30,10 @@ export const getGitHubUser = async (code: string) => {
 
   return {
     githubId: userRes.data.id.toString(),
-    name:
-      userRes.data.name || userRes.data.login || primaryEmail || "GitHub User",
+    name: userRes.data.name || userRes.data.login || primaryEmail || "GitHub User",
     avatarUrl: userRes.data.avatar_url,
     email: primaryEmail,
     githubAccessToken: accessToken,
+    login: userRes.data.login // Add GitHub username
   };
 };

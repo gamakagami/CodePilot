@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import * as githubService from "../services/github.service";
 import * as userService from "../services/user.service";
 import * as jwtService from "../services/jwt.service";
+import * as userProfileService from "../services/userProfile.service";
 
 export const redirectToGitHub = (req: Request, res: Response) => {
   const GITHUB_URL =
@@ -14,17 +15,30 @@ export const redirectToGitHub = (req: Request, res: Response) => {
 };
 
 export const githubCallback = async (req: Request, res: Response) => {
-  const code = req.query.code as string;
-  const gitUser = await githubService.getGitHubUser(code);
+  try {
+    const code = req.query.code as string;
+    const gitUser = await githubService.getGitHubUser(code);
 
-  // create or find user in DB
-  const user = await userService.findOrCreateGitHubUser(gitUser);
+    // Create or find user in auth DB
+    const user = await userService.findOrCreateGitHubUser(gitUser);
 
-  // issue JWT
-  const token = jwtService.generateToken(user);
+    // Issue JWT
+    const token = jwtService.generateToken(user);
 
-  // redirect to frontend with token
-  return res.redirect(`http://localhost:3000/auth/success?token=${token}`);
+    console.log("🔑 JWT Token issued for user:", user.email || user.githubId);
+    console.log("👉 TOKEN:", token);
+
+    // Create user profile in user-service
+    await userProfileService.createUserProfile(user.id, gitUser, token);
+
+    console.log("====================================================");
+
+    // Redirect to frontend with token
+    return res.redirect(`http://localhost:3000/auth/success?token=${token}`);
+  } catch (error: any) {
+    console.error("❌ GitHub callback error:", error);
+    return res.redirect(`http://localhost:3000/auth/error?message=${error.message}`);
+  }
 };
 
 export const getCurrentUser = async (req: any, res: Response) => {

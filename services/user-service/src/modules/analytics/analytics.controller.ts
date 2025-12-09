@@ -1,11 +1,10 @@
 import { Request, Response } from "express";
 import * as analyticsService from "./analytics.service";
 
-export const getRepoAnalytics = async (req: any, res: Response) => {
+export const getAnalyticsSummary = async (req: any, res: Response) => {
   const userId = req.user.id;
-  const repoName = req.params.repoName;
+  const authToken = req.headers.authorization?.split(" ")[1] || "";
 
-  const data = await analyticsService.getRepoAnalytics(userId, repoName);
-
+  const data = await analyticsService.getAnalyticsSummary(userId, authToken);
   return res.json(data);
 };

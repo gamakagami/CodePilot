@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import * as userService from "../services/user.service";
 
 export const getProfile = async (req: any, res: Response) => {
-  const userId = req.user.id;
+  const userId = req.user.id; // this is already a string
   const profile = await userService.getProfile(userId);
   return res.json(profile);
 };

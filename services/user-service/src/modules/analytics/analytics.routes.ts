@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { getRepoAnalytics } from "./analytics.controller";
+import { getAnalyticsSummary } from "./analytics.controller";
 import authMiddleware from "../../middleware/auth";
 
 const router = Router();
 
-router.get("/:repoName", authMiddleware, getRepoAnalytics);
+router.get("/", authMiddleware, getAnalyticsSummary);
 
 export default router;

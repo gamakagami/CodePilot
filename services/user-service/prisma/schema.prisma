@@ -1,3 +1,5 @@
+// user-service/prisma/schema.prisma
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -9,7 +11,7 @@ generator client {
 
 model UserProfile {
   id              Int      @id @default(autoincrement())
-  userId          Int      @unique
+  userId          String   @unique  // Just a reference to auth-service User.id
 
   // Basic profile
   name            String?
@@ -34,3 +36,4 @@ model UserProfile {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
