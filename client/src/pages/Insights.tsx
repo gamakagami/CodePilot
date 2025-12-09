@@ -1,54 +1,53 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  BarChart, 
-  Bar, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  Legend
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
 } from "recharts";
 import { TrendingUp, Clock, Target, GitPullRequest } from "lucide-react";
+import { useAnalyticsQuery } from "@/api/analytics";
+
+const FALLBACK = {
+  totalPRsAnalyzed: 156,
+  averageModelAccuracy: 0.87,
+  averageResponseTime: 24,
+  activeRepositories: 3,
+  modelPerformanceOverTime: [
+    { date: "Jan 15", accuracy: 0.82 },
+    { date: "Feb 5", accuracy: 0.84 },
+    { date: "Mar 15", accuracy: 0.86 },
+    { date: "Apr 22", accuracy: 0.85 },
+    { date: "May 29", accuracy: 0.88 },
+    { date: "Jul 5", accuracy: 0.91 }
+  ],
+  ciLatencyComparison: {
+    traditional: 240,
+    codePilot: 24
+  },
+  llmFeedbackQuality: [
+    { month: "Jan", rating: 4 },
+    { month: "Feb", rating: 4.1 },
+    { month: "Mar", rating: 4 },
+    { month: "Apr", rating: 4.2 },
+    { month: "May", rating: 4.4 }
+  ],
+  repositoryComparison: [
+    { repository: "frontend-app", prsAnalyzed: 24, avgFailureRate: 18, avgLatency: 22 },
+    { repository: "backend-api", prsAnalyzed: 11, avgFailureRate: 35, avgLatency: 28 },
+    { repository: "mobile-client", prsAnalyzed: 19, avgFailureRate: 22, avgLatency: 25 }
+  ]
+};
 
 export default function Insights() {
-  const overviewMetrics = [
-    { label: "Total PRs Analyzed", value: "156", icon: GitPullRequest },
-    { label: "Average Model Accuracy", value: "0.87", icon: Target },
-    { label: "Average Response Time", value: "24s", icon: Clock },
-    { label: "Active Repositories", value: "3", icon: TrendingUp },
-  ];
-
-  const modelPerformanceData = [
-    { date: "Jan 1", f1Score: 0.82 },
-    { date: "Jan 8", f1Score: 0.84 },
-    { date: "Jan 15", f1Score: 0.85 },
-    { date: "Jan 22", f1Score: 0.87 },
-    { date: "Jan 29", f1Score: 0.86 },
-    { date: "Feb 5", f1Score: 0.88 },
-  ];
-
-  const latencyData = [
-    { name: "Traditional CI", time: 180 },
-    { name: "CodePilot", time: 24 },
-  ];
-
-  const feedbackQualityData = [
-    { month: "Jan", rating: 4.2 },
-    { month: "Feb", rating: 4.5 },
-    { month: "Mar", rating: 4.3 },
-    { month: "Apr", rating: 4.6 },
-    { month: "May", rating: 4.7 },
-  ];
-
-  const repoComparisonData = [
-    { name: "frontend-app", prs: 24, failureRate: 0.18, latency: 22 },
-    { name: "backend-api", prs: 11, failureRate: 0.35, latency: 28 },
-    { name: "mobile-client", prs: 19, failureRate: 0.22, latency: 25 },
-  ];
+  const { data, isLoading, isError } = useAnalyticsQuery();
+  const analytics = data ?? FALLBACK;
 
   return (
     <DashboardLayout>
@@ -62,7 +61,12 @@ export default function Insights() {
 
         {/* Overview Metrics */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {overviewMetrics.map((metric) => (
+          {[
+            { label: "Total PRs Analyzed", value: analytics.totalPRsAnalyzed, icon: GitPullRequest },
+            { label: "Average Model Accuracy", value: analytics.averageModelAccuracy, icon: Target },
+            { label: "Average Response Time", value: `${analytics.averageResponseTime}s`, icon: Clock },
+            { label: "Active Repositories", value: analytics.activeRepositories, icon: TrendingUp }
+          ].map((metric) => (
             <Card key={metric.label}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{metric.label}</CardTitle>
@@ -85,7 +89,7 @@ export default function Insights() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={modelPerformanceData}>
+                <LineChart data={analytics.modelPerformanceOverTime}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
                     dataKey="date" 
@@ -93,7 +97,7 @@ export default function Insights() {
                     fontSize={12}
                   />
                   <YAxis 
-                    domain={[0.8, 0.9]} 
+                    domain={[0.7, 1]} 
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                   />
@@ -106,7 +110,7 @@ export default function Insights() {
                   />
                   <Line 
                     type="monotone" 
-                    dataKey="f1Score" 
+                    dataKey="accuracy" 
                     stroke="hsl(var(--primary))" 
                     strokeWidth={2}
                     dot={{ fill: "hsl(var(--primary))" }}
@@ -124,7 +128,12 @@ export default function Insights() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={latencyData}>
+                <BarChart
+                  data={[
+                    { name: "Traditional CI", time: analytics.ciLatencyComparison.traditional },
+                    { name: "CodePilot", time: analytics.ciLatencyComparison.codePilot }
+                  ]}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis 
                     dataKey="name" 
@@ -162,7 +171,7 @@ export default function Insights() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={feedbackQualityData}>
+                <LineChart data={analytics.llmFeedbackQuality}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis 
                   dataKey="month" 
@@ -211,14 +220,14 @@ export default function Insights() {
                   </tr>
                 </thead>
                 <tbody>
-                  {repoComparisonData.map((repo) => (
-                    <tr key={repo.name} className="border-b border-border last:border-0">
-                      <td className="py-3 px-4 font-medium text-foreground">{repo.name}</td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">{repo.prs}</td>
+                  {analytics.repositoryComparison.map((repo) => (
+                    <tr key={repo.repository} className="border-b border-border last:border-0">
+                      <td className="py-3 px-4 font-medium text-foreground">{repo.repository}</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{repo.prsAnalyzed}</td>
                       <td className="py-3 px-4 text-right text-muted-foreground">
-                        {(repo.failureRate * 100).toFixed(0)}%
+                        {repo.avgFailureRate}%
                       </td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">{repo.latency}s</td>
+                      <td className="py-3 px-4 text-right text-muted-foreground">{repo.avgLatency}s</td>
                     </tr>
                   ))}
                 </tbody>
