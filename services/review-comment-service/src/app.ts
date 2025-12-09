@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { reviewController } from "./controllers/review.controller";
+import { evaluationController } from "./controllers/evaluation.controller";
 
 export const app = express();
 
@@ -14,6 +15,9 @@ app.get("/health", (req, res) => {
 
 // Main review endpoint
 app.post("/review", reviewController.generateReview);
+
+app.post("/evaluate", evaluationController.evaluate);
+
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
