@@ -44,3 +44,13 @@ export const githubCallback = async (req: Request, res: Response) => {
 export const getCurrentUser = async (req: any, res: Response) => {
   return res.json(req.user);
 };
+
+export const logout = async (req: Request, res: Response) => {
+  try {
+    return res.json({ message: "Logged out successfully. Please remove token on client side." });
+
+  } catch (error: any) {
+    console.error("❌ Logout error:", error);
+    return res.status(500).json({ error: "Logout failed" });
+  }
+};

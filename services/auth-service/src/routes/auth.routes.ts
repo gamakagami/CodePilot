@@ -5,6 +5,7 @@ import {
   getCurrentUser
 } from "../controllers/auth.controller";
 import requireAuth from "../middleware/requireAuth";
+import { logout } from "../controllers/auth.controller";
 
 const router = Router();
 
@@ -16,5 +17,8 @@ router.get("/github/callback", githubCallback);
 
 // Get current user with JWT
 router.get("/me", requireAuth, getCurrentUser);
+
+// Logout route
+router.post("/logout", requireAuth, logout);
 
 export default router;
