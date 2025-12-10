@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Code2, Menu, Moon, Sun } from "lucide-react";
 import { useState } from "react";
@@ -9,13 +9,41 @@ interface NavbarProps {
   onThemeToggle?: () => void;
 }
 
+interface ScrollNavigationProps {
+  e: React.MouseEvent<HTMLAnchorElement>;
+  href: string;
+  navigate: (to: string) => void;
+  navigateTo?: string;
+}
+
+const scrollNavigation = ({ e, href, navigate, navigateTo }: ScrollNavigationProps) => {
+  if (href.startsWith("#")) {
+    e.preventDefault();
+    if (navigateTo) navigate(navigateTo);
+    setTimeout(() => {
+      if (href === "#home") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        const targetId = href.substring(1);
+        const targetElement = document.getElementById(targetId);
+        if (targetElement) {
+          const navbarHeight = 100;
+          const top = targetElement.getBoundingClientRect().top + window.scrollY - navbarHeight;
+          window.scrollTo({ top, behavior: "smooth" });
+        }
+      }
+    }, 100);
+  }
+};
+
 export const Navbar = ({ theme, onThemeToggle }: NavbarProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
 
   const navLinks = [
-    { label: "Home", href: "/" },
-    { label: "Features", href: "/#features" },
-    { label: "How It Works", href: "/#how-it-works" },
+    { label: "Home", href: "#home", navigateTo: "/" },
+    { label: "Features", href: "#features", navigateTo: "/" },
+    { label: "How It Works", href: "#how-it-works", navigateTo: "/" }
   ];
 
   return (
@@ -33,6 +61,7 @@ export const Navbar = ({ theme, onThemeToggle }: NavbarProps) => {
               <a
                 key={link.href}
                 href={link.href}
+                onClick={(e) => scrollNavigation({ e, href: link.href, navigate, navigateTo: link.navigateTo })}
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
                 {link.label}
@@ -87,7 +116,10 @@ export const Navbar = ({ theme, onThemeToggle }: NavbarProps) => {
                     <a
                       key={link.href}
                       href={link.href}
-                      onClick={() => setIsOpen(false)}
+                      onClick={(e) => {
+                        scrollNavigation({ e, href: link.href, navigate, navigateTo: link.navigateTo });
+                        setIsOpen(false);
+                      }}
                       className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {link.label}

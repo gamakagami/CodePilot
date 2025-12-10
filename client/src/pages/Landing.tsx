@@ -25,7 +25,7 @@ export default function Landing() {
       <Navbar theme={theme} onThemeToggle={toggleTheme} />
       
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 md:py-32">
+      <section id="home" className="container mx-auto px-4 py-20 md:py-32">
         <div className="max-w-4xl mx-auto text-center space-y-8">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground tracking-tight">
             AI-Powered CI Optimization for{" "}
