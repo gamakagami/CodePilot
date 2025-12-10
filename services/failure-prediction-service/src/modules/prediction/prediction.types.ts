@@ -1,4 +1,3 @@
-// ✅ Match exactly what Python expects (all snake_case)
 export interface PredictionInput {
   timestamp: string;
   developer: string;
@@ -9,7 +8,7 @@ export interface PredictionInput {
   avg_function_complexity: number;
   code_coverage_change: number;
   build_duration: number;
-  contains_test_changes: number;  // ✅ Fixed: snake_case now
+  contains_test_changes: number;
   previous_failure_rate: number;
 }
 

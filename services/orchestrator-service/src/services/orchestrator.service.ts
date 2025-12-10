@@ -15,10 +15,10 @@ export class OrchestratorService {
       const analysisResponse = await this.callAnalysisService(request);
       console.log(`✅ Analysis complete (${Date.now() - startTime}ms)`);
       
-      // Step 2: Predict failure
+      // Step 2: Predict failure (send full analysis object now)
       console.log("🎯 Step 2/3: Predicting failure probability...");
       const predictionResponse = await this.callPredictionService(
-        analysisResponse.data.predictionFeatures
+        analysisResponse.data
       );
       console.log(`✅ Prediction complete (${Date.now() - startTime}ms)`);
       
@@ -58,34 +58,18 @@ export class OrchestratorService {
     const url = `${servicesConfig.analysis.url}${servicesConfig.analysis.endpoints.analyze}`;
     
     try {
-      const response = await axios.post(url, {
-        code: request.code,
-        fileId: request.fileId,
-        developer: request.developer,
-        linesAdded: request.linesAdded,
-        linesDeleted: request.linesDeleted,
-        filesChanged: request.filesChanged,
-        codeCoverageChange: request.codeCoverageChange,
-        buildDuration: request.buildDuration,
-        previousFailureRate: request.previousFailureRate
-      }, {
-        timeout: 30000
-      });
-      
+      const response = await axios.post(url, request, { timeout: 30000 });
       return response.data;
     } catch (error: any) {
       throw new Error(`Analysis failed: ${error.response?.data?.error || error.message}`);
     }
   }
   
-  private async callPredictionService(predictionFeatures: any) {
+  private async callPredictionService(analysis: any) {
     const url = `${servicesConfig.prediction.url}${servicesConfig.prediction.endpoints.predict}`;
     
     try {
-      const response = await axios.post(url, predictionFeatures, {
-        timeout: 30000
-      });
-      
+      const response = await axios.post(url, analysis, { timeout: 30000 });
       return response.data;
     } catch (error: any) {
       throw new Error(`Prediction failed: ${error.response?.data?.error || error.message}`);
@@ -110,9 +94,7 @@ export class OrchestratorService {
           will_fail: prediction.will_fail,
           confidence: prediction.confidence
         }
-      }, {
-        timeout: 60000
-      });
+      }, { timeout: 60000 });
       
       return response.data;
     } catch (error: any) {

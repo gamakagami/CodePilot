@@ -5,18 +5,23 @@ export const predictionController = {
   async predict(req: Request, res: Response) {
     try {
       const result = await predictionService.predictFailure(req.body);
-      
+
       res.json({
         success: true,
         data: {
           predicted_failure: result.predicted_failure,
           failure_probability: result.failure_probability,
           will_fail: result.predicted_failure === 1,
-          confidence: result.failure_probability > 0.7 ? "high" :
-                     result.failure_probability > 0.4 ? "medium" : "low",
-          recommendation: result.predicted_failure === 1
-            ? "⚠️ High risk - Recommend additional review and testing"
-            : "✅ Low risk - Safe to proceed with standard review"
+          confidence:
+            result.failure_probability > 0.7
+              ? "high"
+              : result.failure_probability > 0.4
+              ? "medium"
+              : "low",
+          recommendation:
+            result.predicted_failure === 1
+              ? "⚠️ High risk - Recommend additional review and testing"
+              : "✅ Low risk - Safe to proceed with standard review"
         }
       });
     } catch (error: any) {
