@@ -1,10 +1,13 @@
 import { Request, Response } from "express";
-import * as analyticsService from "./analytics.service";
+import { getAnalyticsData } from "./analytics.service";
 
-export const getAnalyticsSummary = async (req: any, res: Response) => {
-  const userId = req.user.id;
-  const authToken = req.headers.authorization?.split(" ")[1] || "";
-
-  const data = await analyticsService.getAnalyticsSummary(userId, authToken);
-  return res.json(data);
+export const getAnalytics = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    const analytics = await getAnalyticsData(userId);
+    return res.json(analytics);
+  } catch (err) {
+    console.error("ANALYTICS ERROR:", err);
+    return res.status(500).json({ error: "Failed to load analytics" });
+  }
 };

@@ -1,5 +1,3 @@
-// user-service/prisma/schema.prisma
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -10,8 +8,8 @@ generator client {
 }
 
 model UserProfile {
-  id              Int      @id @default(autoincrement())
-  userId          String   @unique  // Just a reference to auth-service User.id
+  id              Int           @id @default(autoincrement())
+  userId          String        @unique
 
   // Basic profile
   name            String?
@@ -20,7 +18,7 @@ model UserProfile {
   avatarUrl       String?
 
   // Settings
-  theme           String?  @default("light")
+  theme           String?       @default("light")
 
   // API & Integrations
   claudeApiKey    String?
@@ -28,12 +26,75 @@ model UserProfile {
   modelEndpoint   String?
 
   // Prediction / AI Settings
-  riskThreshold       Float?  @default(0.5)
-  enableLlmReview     Boolean @default(false)
-  enableMlPrediction  Boolean @default(false)
+  riskThreshold       Float?    @default(0.5)
+  enableLlmReview     Boolean   @default(false)
+  enableMlPrediction  Boolean   @default(false)
 
   // Timestamps
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  repositories    Repository[]
 }
 
+model Repository {
+  id              Int           @id @default(autoincrement())
+  name            String
+  lastAnalyzed    DateTime?
+  failureRate     Float?
+  userProfileId   Int
+  userProfile     UserProfile   @relation(fields: [userProfileId], references: [id])
+  pullRequests    PullRequest[]
+
+  @@unique([name, userProfileId])
+}
+
+model PullRequest {
+  id              Int       @id @default(autoincrement())
+  number          Int
+  title           String
+  author          String
+  status          String
+  createdAt       DateTime  @default(now())
+  repositoryId    Int
+  repository      Repository @relation(fields: [repositoryId], references: [id])
+
+  // Analysis fields
+  analysisSummary     String?
+  riskScore           Float?
+  llmReview           String?
+  lastAnalyzed        DateTime?
+
+  // ✅ New fields for metrics
+  analysisDuration    Float?     // in seconds
+  predictedFailure    Boolean?   // from orchestrator
+  actualFailure       Boolean?   // from CI feedback (manual or webhook)
+
+  rating           Int? 
+  changedFiles     ChangedFile[] 
+  reviewComments   ReviewComment[]
+
+  @@unique([number, repositoryId])
+}
+
+
+model ChangedFile {
+  id             Int         @id @default(autoincrement())
+  filename       String
+  additions      Int
+  deletions      Int
+  complexity     Float?
+  diff           String?
+  pullRequestId  Int
+  pullRequest    PullRequest @relation(fields: [pullRequestId], references: [id])
+}
+
+model ReviewComment {
+  id             Int         @id @default(autoincrement())
+  file           String
+  line           Int
+  comment        String
+  pullRequestId  Int
+  pullRequest    PullRequest @relation(fields: [pullRequestId], references: [id])
+}

@@ -1,10 +1,13 @@
 import { Request, Response } from "express";
-import * as dashboardService from "./dashboard.service";
+import { getDashboardData } from "./dashboard.service";
 
-export const getDashboardSummary = async (req: any, res: Response) => {
-  const userId = req.user.id;
-  const authToken = req.headers.authorization?.split(" ")[1] || "";
-  
-  const summary = await dashboardService.getDashboardSummary(userId, authToken);
-  return res.json(summary);
+export const getDashboardMetrics = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.id;
+    const metrics = await getDashboardData(userId);
+    return res.json(metrics);
+  } catch (err) {
+    console.error("DASHBOARD ERROR:", err);
+    return res.status(500).json({ error: "Failed to load dashboard metrics" });
+  }
 };
