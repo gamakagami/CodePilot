@@ -45,6 +45,15 @@ export interface OrchestratorResponse {
       requiresReview: boolean;
       criticalIssuesCount: number;
     };
+    
+    // Performance metrics in seconds
+    performance: {
+      totalDuration: number;        // Total time for entire pipeline (seconds)
+      analysisDuration: number;      // Time for analysis step (seconds)
+      predictionDuration: number;    // Time for prediction step (seconds)
+      reviewDuration: number;        // Time for review step (seconds)
+      averageDuration: number;       // Average of all steps (seconds)
+    };
   };
   error?: string;
 }
