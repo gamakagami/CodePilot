@@ -6,6 +6,6 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  console.error("Gateway error:", err);
-  res.status(500).json({ error: "Internal gateway error" });
+  console.error("Gateway Error:", err);
+  res.status(500).json({ error: "Internal Gateway Error" });
 }
