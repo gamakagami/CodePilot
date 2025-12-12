@@ -22,6 +22,7 @@ import {
   useUpdateApiSettings,
   useUpdateProfile,
 } from "@/api/setting";
+import { useLogoutMutation } from "@/api/auth";
 import { useEffect, useState } from "react";
 
 export default function Settings() {
@@ -29,6 +30,7 @@ export default function Settings() {
   const updateProfileMutation = useUpdateProfile();
   const updateApiSettingsMutation = useUpdateApiSettings();
   const updateAiSettingsMutation = useUpdateAiSettings();
+  const logoutMutation = useLogoutMutation();
   const [profileForm, setProfileForm] = useState({
     name: "",
     email: "",
@@ -207,8 +209,14 @@ export default function Settings() {
               >
                 {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>
-              <Button variant="destructive" className="ml-auto">
-                Disconnect GitHub Account
+              <Button
+                variant="destructive"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+              >
+                {logoutMutation.isPending
+                  ? "Disconnecting..."
+                  : "Disconnect GitHub Account"}
               </Button>
             </div>
           </CardContent>

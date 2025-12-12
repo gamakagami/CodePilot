@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   redirectToGitHub,
   githubCallback,
-  getCurrentUser
+  getCurrentUser,
 } from "../controllers/auth.controller";
 import requireAuth from "../middleware/requireAuth";
 import { logout } from "../controllers/auth.controller";

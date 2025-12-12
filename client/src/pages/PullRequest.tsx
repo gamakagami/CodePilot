@@ -22,7 +22,7 @@ import {
   useRatePullRequestMutation,
 } from "@/api/analytics";
 
-export default function PullRequest() {
+function PullRequest() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, isError } = usePullRequestQuery(id || "");
   const rateMutation = useRatePullRequestMutation();
@@ -370,3 +370,5 @@ export default function PullRequest() {
     </DashboardLayout>
   );
 }
+
+export default PullRequest;
