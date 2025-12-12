@@ -89,7 +89,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.accuracy}</div>
-              <p className="text-xs text-muted-foreground">F1 score</p>
+              <p className="text-xs text-muted-foreground">Accuracy</p>
             </CardContent>
           </Card>
 
