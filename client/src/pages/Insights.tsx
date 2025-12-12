@@ -21,18 +21,11 @@ import { TrendingUp, Clock, Target, GitPullRequest } from "lucide-react";
 import { useAnalyticsQuery } from "@/api/analytics";
 
 const FALLBACK = {
-  totalPRsAnalyzed: 156,
+  totalPRsAnalyzed: 0,
   averageModelAccuracy: 0.87,
   averageResponseTime: 24,
   activeRepositories: 3,
-  modelPerformanceOverTime: [
-    { date: "Jan 15", accuracy: 0.82 },
-    { date: "Feb 5", accuracy: 0.84 },
-    { date: "Mar 15", accuracy: 0.86 },
-    { date: "Apr 22", accuracy: 0.85 },
-    { date: "May 29", accuracy: 0.88 },
-    { date: "Jul 5", accuracy: 0.91 },
-  ],
+  modelPerformanceOverTime: [],
   ciLatencyComparison: {
     traditional: 240,
     codePilot: 24,
@@ -68,7 +61,7 @@ const FALLBACK = {
 
 export default function Insights() {
   const { data, isLoading, isError } = useAnalyticsQuery();
-  const analytics = data ?? FALLBACK;
+  const analytics = FALLBACK;
 
   return (
     <DashboardLayout>

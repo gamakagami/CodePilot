@@ -14,27 +14,45 @@ import { Link } from "react-router-dom";
 import { useDashboardQuery } from "@/api/dashboard";
 import SyncModal from "./SyncModal";
 
-const FALLBACK_DATA = {
-  avgCILatency: 0,
-  modelAccuracy: 0,
-  activeRepositories: 0,
-  repositories: [],
-  recentPullRequests: [],
-};
-
 export default function Dashboard() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const { data, isLoading, isError } = useDashboardQuery();
-  const dashboard = data ?? FALLBACK_DATA;
 
   const stats = {
-    avgLatency: `${dashboard.avgAnalysisDuration ?? 0}s`,
-    accuracy: (dashboard.modelAccuracy ?? 0).toFixed(2),
-    activeRepos: String(dashboard.activeRepositories ?? 0),
+    avgLatency: data?.avgAnalysisDuration
+      ? `${data.avgAnalysisDuration.toFixed(2)}s`
+      : "0s",
+    accuracy:
+      data?.modelAccuracy !== null && data?.modelAccuracy !== undefined
+        ? data.modelAccuracy.toFixed(2)
+        : "0.00",
+    activeRepos: data?.activeRepositories?.toString() ?? "0",
   };
 
-  const repositories = dashboard.repositories ?? [];
-  const recentPRs = dashboard.recentPullRequests ?? [];
+  const repositories = (data?.repositories ?? []).map((repo) => ({
+    id: repo.id,
+    name: repo.name ?? "Unknown",
+    language: null,
+    stars: null,
+    lastAnalyzed: repo.lastAnalyzed
+      ? new Date(repo.lastAnalyzed).toLocaleDateString()
+      : "Never",
+    openPRs: repo._count?.pullRequests ?? 0,
+    failureRate: repo.failureRate ?? 0,
+  }));
+
+  // Safely extract recent PRs with proper mapping
+  const recentPRs = (data?.recentPullRequests ?? []).map((pr) => ({
+    id: pr.id,
+    title: pr.title ?? "Untitled PR",
+    repository: pr.repository?.name ?? "Unknown",
+    author: pr.author ?? "Unknown",
+    createdAt: pr.createdAt
+      ? new Date(pr.createdAt).toLocaleDateString()
+      : "Unknown date",
+    status: pr.lastAnalyzed ? "analyzed" : "pending",
+    url: `/pr/${pr.id}`,
+  }));
 
   return (
     <DashboardLayout>
@@ -116,42 +134,47 @@ export default function Dashboard() {
             )}
             {isError && (
               <p className="text-sm text-destructive">
-                Failed to load repositories. Showing fallback data.
+                Failed to load repositories. Please try again later.
               </p>
             )}
-            <div className="space-y-4">
-              {repositories.map((repo) => (
-                <div
-                  key={repo.id ?? repo.name}
-                  className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="space-y-1">
-                    <h3 className="font-semibold text-foreground">
-                      {repo.name}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {repo.language ? `${repo.language} • ` : ""}
-                      {repo.stars ? `${repo.stars}⭐ • ` : ""}
-                      Last analyzed {repo.lastAnalyzed}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-6 text-sm">
-                    <div className="text-right">
-                      <p className="font-medium text-foreground">
-                        {repo.openPRs}
+            {!isLoading && !isError && repositories.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No repositories found. Sync from GitHub to get started.
+              </p>
+            )}
+            {!isLoading && !isError && repositories.length > 0 && (
+              <div className="space-y-4">
+                {repositories.map((repo) => (
+                  <div
+                    key={repo.id}
+                    className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <h3 className="font-semibold text-foreground">
+                        {repo.name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Last analyzed: {repo.lastAnalyzed}
                       </p>
-                      <p className="text-muted-foreground">Open PRs</p>
                     </div>
-                    <div className="text-right">
-                      <p className="font-medium text-foreground">
-                        {(repo.failureRate ?? 0).toFixed(0)}%
-                      </p>
-                      <p className="text-muted-foreground">Failure rate</p>
+                    <div className="flex items-center space-x-6 text-sm">
+                      <div className="text-right">
+                        <p className="font-medium text-foreground">
+                          {repo.openPRs}
+                        </p>
+                        <p className="text-muted-foreground">Open PRs</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-foreground">
+                          {repo.failureRate.toFixed(0)}%
+                        </p>
+                        <p className="text-muted-foreground">Failure rate</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -170,15 +193,20 @@ export default function Dashboard() {
             )}
             {isError && (
               <p className="text-sm text-destructive">
-                Failed to load PRs. Showing fallback data.
+                Failed to load pull requests. Please try again later.
               </p>
             )}
-            {!isLoading && (
+            {!isLoading && !isError && recentPRs.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No pull requests found.
+              </p>
+            )}
+            {!isLoading && !isError && recentPRs.length > 0 && (
               <div className="space-y-3">
                 {recentPRs.map((pr) => (
                   <Link
                     key={pr.id}
-                    to={pr.url || `/pr/${pr.id}`}
+                    to={pr.url}
                     className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-start space-x-4 flex-1">

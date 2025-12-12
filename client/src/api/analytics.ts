@@ -18,13 +18,12 @@ export type AnalyticsResponse = {
 };
 
 export const fetchAnalytics = async (): Promise<AnalyticsResponse> => {
-  const res = await api.get("/analytics/");
+  const res = await api.get("/users/analytics/");
   return res.data;
 };
 
 export const useAnalyticsQuery = () =>
   useQuery({
     queryKey: ["analytics"],
-    queryFn: fetchAnalytics
+    queryFn: fetchAnalytics,
   });
-

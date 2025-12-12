@@ -113,7 +113,6 @@ export default function Settings() {
   const handleAiSettingChange = (key: string, value: any) => {
     setAiForm((prev) => ({ ...prev, [key]: value }));
 
-    // Auto-save AI settings
     const updatedSettings = { ...aiForm, [key]: value };
     updateAiSettingsMutation.mutate({
       riskThreshold: updatedSettings.riskThreshold / 100,

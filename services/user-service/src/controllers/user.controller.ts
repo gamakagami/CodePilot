@@ -39,8 +39,8 @@ export const addRepository = async (req: any, res: Response) => {
       name: req.body.name,
       lastAnalyzed: req.body.lastAnalyzed,
       failureRate: req.body.failureRate,
-      userProfileId: user.id
-    }
+      userProfileId: user.id,
+    },
   });
 
   return res.json(repo);
@@ -53,8 +53,8 @@ export const addPullRequest = async (req: any, res: Response) => {
       title: req.body.title,
       author: req.body.author,
       status: req.body.status,
-      repositoryId: repoId
-    }
+      repositoryId: repoId,
+    },
   });
 
   return res.json(pr);
@@ -74,7 +74,7 @@ export const syncRepositories = async (req: any, res: Response) => {
 export const syncSingleRepository = async (req: any, res: Response) => {
   try {
     const userId = req.user.id;
-    
+
     const repoName = req.params.repoName;
 
     const result = await userService.syncSingleRepository(userId, repoName);
@@ -111,8 +111,8 @@ export const submitPullRequest = async (req, res) => {
     const pr = await prisma.pullRequest.findUnique({
       where: { id: prId },
       include: {
-        repository: { include: { userProfile: true } }
-      }
+        repository: { include: { userProfile: true } },
+      },
     });
 
     const repo = pr.repository;
@@ -122,7 +122,7 @@ export const submitPullRequest = async (req, res) => {
       ...payload,
       repositoryFullName: `${userProfile.githubUsername}/${repo.name}`,
       prId: pr.number,
-      prUrl: `https://github.com/${userProfile.githubUsername}/${repo.name}/pull/${pr.number}`
+      prUrl: `https://github.com/${userProfile.githubUsername}/${repo.name}/pull/${pr.number}`,
     };
 
     const response = await axios.post(
@@ -140,8 +140,8 @@ export const submitPullRequest = async (req, res) => {
       {
         headers: {
           Authorization: `Bearer ${userProfile.githubToken}`,
-          Accept: "application/vnd.github+json"
-        }
+          Accept: "application/vnd.github+json",
+        },
       }
     );
 
@@ -151,37 +151,36 @@ export const submitPullRequest = async (req, res) => {
 
     if (files.length > 0) {
       await prisma.changedFile.createMany({
-        data: files.map(f => ({
+        data: files.map((f) => ({
           filename: f.filename,
           additions: f.additions,
           deletions: f.deletions,
           complexity: result.analysis?.metrics?.cyclomaticComplexity ?? null,
           diff: f.patch ?? null,
-          pullRequestId: prId
-        }))
+          pullRequestId: prId,
+        })),
       });
     }
 
     return res.json({
       success: true,
       stored: true,
-      analysis: result
+      analysis: result,
     });
-
   } catch (err) {
     console.error("SUBMIT ERROR:", err);
-    return res.status(500).json({ error: "Failed to submit PR to orchestrator" });
+    return res
+      .status(500)
+      .json({ error: "Failed to submit PR to orchestrator" });
   }
 };
-
-
 
 export const getMetrics = async (req, res) => {
   try {
     // ✅ Step 1: Convert JWT userId (string) → profileId (int)
     const profile = await prisma.userProfile.findUnique({
       where: { userId: req.user.id },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!profile) {
@@ -195,15 +194,15 @@ export const getMetrics = async (req, res) => {
       _avg: { analysisDuration: true },
       where: {
         repository: {
-          userProfileId: profileId
+          userProfileId: profileId,
         },
-        analysisDuration: { not: null }
-      }
+        analysisDuration: { not: null },
+      },
     });
 
     // ✅ Active Repositories (user-scoped)
     const activeRepositories = await prisma.repository.count({
-      where: { userProfileId: profileId }
+      where: { userProfileId: profileId },
     });
 
     // ✅ Model Accuracy (user-scoped)
@@ -212,16 +211,16 @@ export const getMetrics = async (req, res) => {
         repository: { userProfileId: profileId },
         predictedFailure: { not: null },
         actualFailure: { not: null },
-        predictedFailure: { equals: prisma.pullRequest.fields.actualFailure }
-      }
+        predictedFailure: { equals: prisma.pullRequest.fields.actualFailure },
+      },
     });
 
     const totalEvaluated = await prisma.pullRequest.count({
       where: {
         repository: { userProfileId: profileId },
         predictedFailure: { not: null },
-        actualFailure: { not: null }
-      }
+        actualFailure: { not: null },
+      },
     });
 
     const modelAccuracy =
@@ -230,15 +229,13 @@ export const getMetrics = async (req, res) => {
     return res.json({
       avgAnalysisDuration: avgAnalysis._avg.analysisDuration || 0,
       activeRepositories,
-      modelAccuracy
+      modelAccuracy,
     });
-
   } catch (err) {
     console.error("METRICS ERROR:", err);
     return res.status(500).json({ error: "Failed to load metrics" });
   }
 };
-
 
 export const submitPredictionFeedback = async (req: any, res: Response) => {
   try {
@@ -250,8 +247,8 @@ export const submitPredictionFeedback = async (req: any, res: Response) => {
     }
 
     if (typeof actualFailure !== "boolean") {
-      return res.status(400).json({ 
-        error: "actualFailure must be a boolean value" 
+      return res.status(400).json({
+        error: "actualFailure must be a boolean value",
       });
     }
 
@@ -263,32 +260,32 @@ export const submitPredictionFeedback = async (req: any, res: Response) => {
         id: prId,
         repository: {
           userProfile: {
-            userId: userId
-          }
-        }
+            userId: userId,
+          },
+        },
       },
       include: {
-        repository: true
-      }
+        repository: true,
+      },
     });
 
     if (!pr) {
-      return res.status(404).json({ 
-        error: "Pull request not found or access denied" 
+      return res.status(404).json({
+        error: "Pull request not found or access denied",
       });
     }
 
     // Check if prediction exists
     if (pr.predictedFailure === null) {
-      return res.status(400).json({ 
-        error: "No prediction exists for this pull request" 
+      return res.status(400).json({
+        error: "No prediction exists for this pull request",
       });
     }
 
     // Update the actualFailure field
     const updated = await prisma.pullRequest.update({
       where: { id: prId },
-      data: { actualFailure }
+      data: { actualFailure },
     });
 
     return res.json({
@@ -297,15 +294,13 @@ export const submitPredictionFeedback = async (req: any, res: Response) => {
         id: updated.id,
         predictedFailure: updated.predictedFailure,
         actualFailure: updated.actualFailure,
-        wasCorrect: updated.predictedFailure === updated.actualFailure
-      }
+        wasCorrect: updated.predictedFailure === updated.actualFailure,
+      },
     });
-
   } catch (err: any) {
     console.error("FEEDBACK ERROR:", err);
-    return res.status(500).json({ 
-      error: "Failed to submit prediction feedback" 
+    return res.status(500).json({
+      error: "Failed to submit prediction feedback",
     });
   }
 };
-

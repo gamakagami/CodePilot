@@ -12,7 +12,7 @@ import { errorHandler } from "./middleware/errorHandler";
 console.log("ENV CHECK:", {
   AUTH: process.env.AUTH_SERVICE_URL,
   USER: process.env.USER_SERVICE_URL,
-  JWT: process.env.JWT_SECRET
+  JWT: process.env.JWT_SECRET,
 });
 
 const app = express();

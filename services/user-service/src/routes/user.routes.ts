@@ -1,6 +1,6 @@
 import { Router } from "express";
 import authMiddleware from "../middleware/auth";
-import { 
+import {
   getProfile,
   updateProfile,
   updateApiSettings,
@@ -12,7 +12,7 @@ import {
   analyzePullRequest,
   submitPullRequest,
   getMetrics,
-  submitPredictionFeedback
+  submitPredictionFeedback,
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -31,12 +31,20 @@ router.post("/repositories", authMiddleware, addRepository);
 router.post("/pull-requests", authMiddleware, addPullRequest);
 
 router.post("/repositories/sync", authMiddleware, syncRepositories);
-router.post("/repositories/sync/:repoName", authMiddleware, syncSingleRepository);
+router.post(
+  "/repositories/sync/:repoName",
+  authMiddleware,
+  syncSingleRepository
+);
 
 router.post("/pull-requests/:prId/analyze", authMiddleware, analyzePullRequest);
 router.post("/pull-requests/:prId/submit", authMiddleware, submitPullRequest);
 
 router.get("/metrics", authMiddleware, getMetrics);
 
-router.post("/pull-requests/:prId/feedback", authMiddleware, submitPredictionFeedback);
+router.post(
+  "/pull-requests/:prId/feedback",
+  authMiddleware,
+  submitPredictionFeedback
+);
 export default router;
