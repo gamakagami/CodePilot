@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 
 export default function Login() {
   const handleGithubLogin = () => {
-    window.location.href = "http://localhost:3001/api/auth/github";
+    window.location.href = "http://localhost:4001/auth/github";
   };
 
   return (
