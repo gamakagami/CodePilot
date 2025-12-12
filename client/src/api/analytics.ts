@@ -27,3 +27,14 @@ export const useAnalyticsQuery = () =>
     queryKey: ["analytics"],
     queryFn: fetchAnalytics,
   });
+
+export const fetchPullRequest = async (prId: string) => {
+  const res = await api.get(`/users/pullRequest/${prId}`);
+  return res.data;
+};
+
+export const usePullRequestQuery = (prId: string) =>
+  useQuery({
+    queryKey: ["pullRequest", prId],
+    queryFn: () => fetchPullRequest(prId),
+  });

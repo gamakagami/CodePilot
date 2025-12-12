@@ -51,7 +51,7 @@ export default function Dashboard() {
       ? new Date(pr.createdAt).toLocaleDateString()
       : "Unknown date",
     status: pr.lastAnalyzed ? "analyzed" : "pending",
-    url: `/pr/${pr.id}`,
+    url: `/pullRequest/${pr.id}`,
   }));
 
   return (
