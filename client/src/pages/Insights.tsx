@@ -19,49 +19,75 @@ import {
 } from "recharts";
 import { TrendingUp, Clock, Target, GitPullRequest } from "lucide-react";
 import { useAnalyticsQuery } from "@/api/analytics";
-
-const FALLBACK = {
-  totalPRsAnalyzed: 0,
-  averageModelAccuracy: 0.87,
-  averageResponseTime: 24,
-  activeRepositories: 3,
-  modelPerformanceOverTime: [],
-  ciLatencyComparison: {
-    traditional: 240,
-    codePilot: 24,
-  },
-  llmFeedbackQuality: [
-    { month: "Jan", rating: 4 },
-    { month: "Feb", rating: 4.1 },
-    { month: "Mar", rating: 4 },
-    { month: "Apr", rating: 4.2 },
-    { month: "May", rating: 4.4 },
-  ],
-  repositoryComparison: [
-    {
-      repository: "frontend-app",
-      prsAnalyzed: 24,
-      avgFailureRate: 18,
-      avgLatency: 22,
-    },
-    {
-      repository: "backend-api",
-      prsAnalyzed: 11,
-      avgFailureRate: 35,
-      avgLatency: 28,
-    },
-    {
-      repository: "mobile-client",
-      prsAnalyzed: 19,
-      avgFailureRate: 22,
-      avgLatency: 25,
-    },
-  ],
-};
+import { useState } from "react";
 
 export default function Insights() {
   const { data, isLoading, isError } = useAnalyticsQuery();
-  const analytics = FALLBACK;
+  const [timeFilter, setTimeFilter] = useState<"week" | "month">("week");
+
+  const getFilteredFeedback = () => {
+    const now = new Date("2025-12-12");
+    const days = timeFilter === "week" ? 7 : 30;
+    const generatedData = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+
+      const dateStr = date.toISOString().split("T")[0];
+      const displayDate = date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+
+      const existingData = data?.llmFeedbackHistory?.find((item) => {
+        const itemDate = new Date(item.createdAt).toISOString().split("T")[0];
+        return itemDate === dateStr;
+      });
+
+      generatedData.push({
+        date: displayDate,
+        rating: existingData?.rating || 0,
+        createdAt: dateStr,
+      });
+    }
+
+    return generatedData;
+  };
+
+  // Sync codePilot latency with averageResponseTime
+  const ciLatencyData = data
+    ? [
+        {
+          name: "Traditional CI",
+          time: 600,
+        },
+        {
+          name: "CodePilot",
+          time: data.averageResponseTime,
+        },
+      ]
+    : [];
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-muted-foreground">Loading analytics...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-destructive">Failed to load analytics data</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -76,27 +102,26 @@ export default function Insights() {
           </p>
         </div>
 
-        {/* Overview Metrics */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[
             {
               label: "Total PRs Analyzed",
-              value: analytics.totalPRsAnalyzed,
+              value: data.totalPRsAnalyzed,
               icon: GitPullRequest,
             },
             {
               label: "Average Model Accuracy",
-              value: analytics.averageModelAccuracy,
+              value: `${data.successRate}%`,
               icon: Target,
             },
             {
               label: "Average Response Time",
-              value: `${analytics.averageResponseTime}s`,
+              value: `${data.averageResponseTime}s`,
               icon: Clock,
             },
             {
               label: "Active Repositories",
-              value: analytics.activeRepositories,
+              value: data.activeRepositories,
               icon: TrendingUp,
             },
           ].map((metric) => (
@@ -116,8 +141,6 @@ export default function Insights() {
 
         {/* Charts Row 1 */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Model Performance Chart */}
-
           {/* CI Latency Comparison */}
           <Card>
             <CardHeader>
@@ -128,18 +151,7 @@ export default function Insights() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={[
-                    {
-                      name: "Traditional CI",
-                      time: analytics.ciLatencyComparison.traditional,
-                    },
-                    {
-                      name: "CodePilot",
-                      time: analytics.ciLatencyComparison.codePilot,
-                    },
-                  ]}
-                >
+                <BarChart data={ciLatencyData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="hsl(var(--border))"
@@ -174,25 +186,55 @@ export default function Insights() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
+
+          {/* LLM Feedback Quality with Time Filter */}
           <Card>
             <CardHeader>
-              <CardTitle>LLM Feedback Quality</CardTitle>
-              <CardDescription>Average user ratings over time</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>LLM Feedback Quality</CardTitle>
+                  <CardDescription>
+                    Average user ratings over time
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTimeFilter("week")}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      timeFilter === "week"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    1 Week
+                  </button>
+                  <button
+                    onClick={() => setTimeFilter("month")}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      timeFilter === "month"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    1 Month
+                  </button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={analytics.llmFeedbackQuality}>
+                <LineChart data={getFilteredFeedback()}>
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="hsl(var(--border))"
                   />
                   <XAxis
-                    dataKey="month"
+                    dataKey="date"
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                   />
                   <YAxis
-                    domain={[4, 5]}
+                    domain={[0, 5]}
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={12}
                   />
@@ -215,6 +257,8 @@ export default function Insights() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Repository Comparison Table */}
         <Card>
           <CardHeader>
             <CardTitle>Repository Comparison</CardTitle>
@@ -242,13 +286,13 @@ export default function Insights() {
                   </tr>
                 </thead>
                 <tbody>
-                  {analytics.repositoryComparison.map((repo) => (
+                  {data.repositoryComparison.map((repo) => (
                     <tr
-                      key={repo.repository}
+                      key={repo.name}
                       className="border-b border-border last:border-0"
                     >
                       <td className="py-3 px-4 font-medium text-foreground">
-                        {repo.repository}
+                        {repo.name}
                       </td>
                       <td className="py-3 px-4 text-right text-muted-foreground">
                         {repo.prsAnalyzed}

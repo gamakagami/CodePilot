@@ -204,8 +204,6 @@ export default function PullRequest() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Code Diff Viewer */}
               <Card>
                 <CardHeader>
                   <CardTitle>Changed Files ({changedFiles.length})</CardTitle>

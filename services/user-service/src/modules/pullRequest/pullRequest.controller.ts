@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
-import { getPullRequestData, ratePullRequest as ratePR } from "./pullRequest.service";
+import {
+  getPullRequestData,
+  ratePullRequest as ratePR,
+} from "./pullRequest.service";
 
 export const getPullRequestDetails = async (req: Request, res: Response) => {
   try {
@@ -10,11 +13,13 @@ export const getPullRequestDetails = async (req: Request, res: Response) => {
     return res.json(data);
   } catch (err) {
     console.error("PR DETAIL ERROR:", err);
-    return res.status(500).json({ error: "Failed to load pull request details" });
+    return res
+      .status(500)
+      .json({ error: "Failed to load pull request details" });
   }
 };
 
-export const ratePullRequest = async (req: Request, res: Response) => { // ✅ Add types
+export const ratePullRequest = async (req: Request, res: Response) => {
   try {
     const prId = Number(req.params.id);
     const { rating } = req.body;
@@ -27,9 +32,8 @@ export const ratePullRequest = async (req: Request, res: Response) => { // ✅ A
 
     return res.json({
       success: true,
-      rating: updated.rating
+      rating: updated.rating,
     });
-
   } catch (err) {
     console.error("RATE PR ERROR:", err);
     return res.status(500).json({ error: "Failed to rate pull request" });
