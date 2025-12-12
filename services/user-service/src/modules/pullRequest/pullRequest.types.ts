@@ -27,5 +27,9 @@ export interface PullRequestDetail {
   }[];
   analysisSummary: string | null;
   analysisDuration: number | null;
-  rating: number | null;
+  rating: number | null; // Current average
+  ratingHistory: {
+    rating: number;
+    createdAt: Date;
+  }[]; // For the chart
 }

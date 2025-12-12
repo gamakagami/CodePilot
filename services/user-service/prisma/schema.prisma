@@ -60,24 +60,32 @@ model PullRequest {
   repositoryId    Int
   repository      Repository @relation(fields: [repositoryId], references: [id])
 
-  // Analysis fields
   analysisSummary     String?
   riskScore           Float?
   llmReview           String?
   lastAnalyzed        DateTime?
 
-  // ✅ New fields for metrics
-  analysisDuration    Float?     // in seconds
-  predictedFailure    Boolean?   // from orchestrator
-  actualFailure       Boolean?   // from CI feedback (manual or webhook)
+  analysisDuration    Float?     
+  predictedFailure    Boolean?   
+  actualFailure       Boolean?  
 
-  rating           Int? 
+  rating           Float? 
+  ratingHistory    RatingHistory[]
   changedFiles     ChangedFile[] 
   reviewComments   ReviewComment[]
 
   @@unique([number, repositoryId])
 }
 
+model RatingHistory {
+  id            Int       @id @default(autoincrement())
+  pullRequestId Int
+  rating        Int       
+  createdAt     DateTime  @default(now())
+  pullRequest   PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  
+  @@index([pullRequestId])
+}
 
 model ChangedFile {
   id             Int         @id @default(autoincrement())
