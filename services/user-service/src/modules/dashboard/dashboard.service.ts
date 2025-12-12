@@ -49,7 +49,6 @@ export const getDashboardData = async (userId: string): Promise<DashboardMetrics
   // ✅ Get up to 3 repositories
   const repositories = await prisma.repository.findMany({
     where: { userProfileId: profileId },
-    take: 3,
     orderBy: { id: "desc" },
     include: {
       _count: { select: { pullRequests: true } },
