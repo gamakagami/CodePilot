@@ -11,7 +11,8 @@ import {
   syncSingleRepository,
   analyzePullRequest,
   submitPullRequest,
-  getMetrics
+  getMetrics,
+  submitPredictionFeedback
 } from "../controllers/user.controller";
 
 const router = Router();
@@ -37,4 +38,5 @@ router.post("/pull-requests/:prId/submit", authMiddleware, submitPullRequest);
 
 router.get("/metrics", authMiddleware, getMetrics);
 
+router.post("/pull-requests/:prId/feedback", authMiddleware, submitPredictionFeedback);
 export default router;

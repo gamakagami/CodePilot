@@ -240,5 +240,72 @@ export const getMetrics = async (req, res) => {
 };
 
 
+export const submitPredictionFeedback = async (req: any, res: Response) => {
+  try {
+    const prId = Number(req.params.prId);
+    const { actualFailure } = req.body;
 
+    if (Number.isNaN(prId)) {
+      return res.status(400).json({ error: "Invalid pull request id" });
+    }
+
+    if (typeof actualFailure !== "boolean") {
+      return res.status(400).json({ 
+        error: "actualFailure must be a boolean value" 
+      });
+    }
+
+    const userId = req.user.id;
+
+    // Verify the PR belongs to the user
+    const pr = await prisma.pullRequest.findFirst({
+      where: {
+        id: prId,
+        repository: {
+          userProfile: {
+            userId: userId
+          }
+        }
+      },
+      include: {
+        repository: true
+      }
+    });
+
+    if (!pr) {
+      return res.status(404).json({ 
+        error: "Pull request not found or access denied" 
+      });
+    }
+
+    // Check if prediction exists
+    if (pr.predictedFailure === null) {
+      return res.status(400).json({ 
+        error: "No prediction exists for this pull request" 
+      });
+    }
+
+    // Update the actualFailure field
+    const updated = await prisma.pullRequest.update({
+      where: { id: prId },
+      data: { actualFailure }
+    });
+
+    return res.json({
+      success: true,
+      pullRequest: {
+        id: updated.id,
+        predictedFailure: updated.predictedFailure,
+        actualFailure: updated.actualFailure,
+        wasCorrect: updated.predictedFailure === updated.actualFailure
+      }
+    });
+
+  } catch (err: any) {
+    console.error("FEEDBACK ERROR:", err);
+    return res.status(500).json({ 
+      error: "Failed to submit prediction feedback" 
+    });
+  }
+};
 
