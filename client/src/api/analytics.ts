@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "./http";
 
 export type AnalyticsResponse = {
@@ -38,3 +38,22 @@ export const usePullRequestQuery = (prId: string) =>
     queryKey: ["pullRequest", prId],
     queryFn: () => fetchPullRequest(prId),
   });
+
+export const ratePullRequest = async (prId: string, rating: number) => {
+  const res = await api.post(`/users/pullRequest/${prId}/rate`, { rating });
+  return res.data;
+};
+
+export const useRatePullRequestMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ prId, rating }: { prId: string; rating: number }) =>
+      ratePullRequest(prId, rating),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["pullRequest", variables.prId],
+      });
+    },
+  });
+};

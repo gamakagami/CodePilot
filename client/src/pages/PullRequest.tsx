@@ -14,23 +14,42 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import { useParams } from "react-router-dom";
-import { usePullRequestQuery } from "@/api/analytics";
+import {
+  usePullRequestQuery,
+  useRatePullRequestMutation,
+} from "@/api/analytics";
 
 export default function PullRequest() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, isError } = usePullRequestQuery(id || "");
+  const rateMutation = useRatePullRequestMutation();
   const [expandedFiles, setExpandedFiles] = useState<{
     [key: string]: boolean;
   }>({});
+  const [userRating, setUserRating] = useState<number | null>(
+    data?.rating || null
+  );
 
   const toggleFile = (fileName: string) => {
     setExpandedFiles((prev) => ({ ...prev, [fileName]: !prev[fileName] }));
   };
 
-  // Map fetched data to component data structure
+  const handleRating = (rating: number) => {
+    setUserRating(rating);
+    if (id) {
+      rateMutation.mutate({ prId: id, rating });
+    }
+  };
+
+  useEffect(() => {
+    if (data?.rating) {
+      setUserRating(data.rating);
+    }
+  }, [data?.rating]);
+
   const prData = data
     ? {
         id: data.id,
@@ -109,7 +128,6 @@ export default function PullRequest() {
 
       {!isLoading && !isError && prData && (
         <div className="space-y-6">
-          {/* PR Header */}
           <div className="space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1 flex-1">
@@ -142,9 +160,7 @@ export default function PullRequest() {
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left Column - Code Diff */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Failure Prediction */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
@@ -310,7 +326,7 @@ export default function PullRequest() {
 
               {/* Analysis Summary */}
               <Card>
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 space-y-4">
                   <p className="text-sm text-muted-foreground text-center">
                     Analysis generated in{" "}
                     <span className="font-semibold text-foreground">
@@ -321,6 +337,30 @@ export default function PullRequest() {
                     </span>{" "}
                     using AI
                   </p>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground text-center">
+                      Rate this analysis
+                    </p>
+                    <div className="flex justify-center gap-2">
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <Button
+                          key={rating}
+                          variant={
+                            userRating === rating ? "default" : "outline"
+                          }
+                          size="sm"
+                          onClick={() => handleRating(rating)}
+                          disabled={rateMutation.isPending}
+                          className="w-10 h-10 p-0"
+                        >
+                          ⭐
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </div>

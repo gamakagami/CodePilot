@@ -48,7 +48,7 @@ const AppContent = () => {
         }
       />
       <Route
-        path="/pr/:id"
+        path="/pullRequest/:id"
         element={
           <ProtectedRoute type="1">
             <PullRequest />
