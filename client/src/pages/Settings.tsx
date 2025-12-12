@@ -16,10 +16,111 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useFetchProfile } from "@/api/profile";
+import {
+  useFetchProfile,
+  useUpdateAiSettings,
+  useUpdateApiSettings,
+  useUpdateProfile,
+} from "@/api/setting";
+import { useEffect, useState } from "react";
 
 export default function Settings() {
   const { data } = useFetchProfile();
+  const updateProfileMutation = useUpdateProfile();
+  const updateApiSettingsMutation = useUpdateApiSettings();
+  const updateAiSettingsMutation = useUpdateAiSettings();
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    email: "",
+  });
+  const [profileChanged, setProfileChanged] = useState(false);
+  const [apiForm, setApiForm] = useState({
+    claudeApiKey: "",
+    modelEndpoint: "",
+  });
+  const [apiChanged, setApiChanged] = useState(false);
+  const [aiForm, setAiForm] = useState({
+    riskThreshold: 50,
+    enableLlmReview: false,
+    enableMlPrediction: false,
+  });
+  const [aiChanged, setAiChanged] = useState(false);
+
+  useEffect(() => {
+    if (data) {
+      setProfileForm({
+        name: data.name || "",
+        email: data.email || "",
+      });
+      setApiForm({
+        claudeApiKey: data.claudeApiKey || "",
+        modelEndpoint: data.modelEndpoint || "",
+      });
+      setAiForm({
+        riskThreshold: Math.round((data.riskThreshold || 0.5) * 100),
+        enableLlmReview: data.enableLlmReview || false,
+        enableMlPrediction: data.enableMlPrediction || false,
+      });
+    }
+  }, [data]);
+
+  // Track profile changes
+  useEffect(() => {
+    if (data) {
+      const hasChanges =
+        profileForm.name !== (data.name || "") ||
+        profileForm.email !== (data.email || "");
+      setProfileChanged(hasChanges);
+    }
+  }, [profileForm, data]);
+
+  // Track API settings changes
+  useEffect(() => {
+    if (data) {
+      const hasChanges =
+        apiForm.claudeApiKey !== (data.claudeApiKey || "") ||
+        apiForm.modelEndpoint !== (data.modelEndpoint || "");
+      setApiChanged(hasChanges);
+    }
+  }, [apiForm, data]);
+
+  // Track AI settings changes
+  useEffect(() => {
+    if (data) {
+      const hasChanges =
+        aiForm.riskThreshold !==
+          Math.round((data.riskThreshold || 0.5) * 100) ||
+        aiForm.enableLlmReview !== (data.enableLlmReview || false) ||
+        aiForm.enableMlPrediction !== (data.enableMlPrediction || false);
+      setAiChanged(hasChanges);
+    }
+  }, [aiForm, data]);
+
+  const handleSaveProfile = () => {
+    updateProfileMutation.mutate({
+      name: profileForm.name,
+      email: profileForm.email,
+    });
+  };
+
+  const handleUpdateApiSettings = () => {
+    updateApiSettingsMutation.mutate({
+      claudeApiKey: apiForm.claudeApiKey,
+      modelEndpoint: apiForm.modelEndpoint,
+    });
+  };
+
+  const handleAiSettingChange = (key: string, value: any) => {
+    setAiForm((prev) => ({ ...prev, [key]: value }));
+
+    // Auto-save AI settings
+    const updatedSettings = { ...aiForm, [key]: value };
+    updateAiSettingsMutation.mutate({
+      riskThreshold: updatedSettings.riskThreshold / 100,
+      enableLlmReview: updatedSettings.enableLlmReview,
+      enableMlPrediction: updatedSettings.enableMlPrediction,
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -31,7 +132,6 @@ export default function Settings() {
           </p>
         </div>
 
-        {/* User Profile */}
         <Card>
           <CardHeader>
             <CardTitle>User Profile</CardTitle>
@@ -67,7 +167,13 @@ export default function Settings() {
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" defaultValue={data?.name || ""} />
+                <Input
+                  id="fullName"
+                  value={profileForm.name}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, name: e.target.value })
+                  }
+                />
               </div>
 
               <div className="grid gap-2">
@@ -87,13 +193,21 @@ export default function Settings() {
                 <Input
                   id="email"
                   type="email"
-                  defaultValue={data?.email || ""}
+                  value={profileForm.email}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, email: e.target.value })
+                  }
                 />
               </div>
             </div>
 
             <div className="flex justify-between items-center pt-4">
-              <Button>Save Changes</Button>
+              <Button
+                onClick={handleSaveProfile}
+                disabled={!profileChanged || updateProfileMutation.isPending}
+              >
+                {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
               <Button variant="destructive" className="ml-auto">
                 Disconnect GitHub Account
               </Button>
@@ -125,7 +239,10 @@ export default function Settings() {
                   id="claudeKey"
                   type="password"
                   placeholder="sk-ant-..."
-                  defaultValue={data?.claudeApiKey || ""}
+                  value={apiForm.claudeApiKey}
+                  onChange={(e) =>
+                    setApiForm({ ...apiForm, claudeApiKey: e.target.value })
+                  }
                 />
               </div>
 
@@ -150,12 +267,22 @@ export default function Settings() {
                 <Input
                   id="modelEndpoint"
                   placeholder="https://ml.codepilot.ai/predict"
-                  defaultValue={data?.modelEndpoint || ""}
+                  value={apiForm.modelEndpoint}
+                  onChange={(e) =>
+                    setApiForm({ ...apiForm, modelEndpoint: e.target.value })
+                  }
                 />
               </div>
             </div>
 
-            <Button>Update API Keys</Button>
+            <Button
+              onClick={handleUpdateApiSettings}
+              disabled={!apiChanged || updateApiSettingsMutation.isPending}
+            >
+              {updateApiSettingsMutation.isPending
+                ? "Updating..."
+                : "Update API Keys"}
+            </Button>
           </CardContent>
         </Card>
 
@@ -173,17 +300,19 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <Label htmlFor="riskThreshold">Risk Threshold</Label>
                   <span className="text-sm text-muted-foreground">
-                    {data?.riskThreshold?.toFixed(2) || "0.50"}
+                    {(aiForm.riskThreshold / 100).toFixed(2)}
                   </span>
                 </div>
                 <Slider
                   id="riskThreshold"
-                  defaultValue={[
-                    Math.round((data?.riskThreshold || 0.5) * 100),
-                  ]}
+                  value={[aiForm.riskThreshold]}
+                  onValueChange={(value) =>
+                    handleAiSettingChange("riskThreshold", value[0])
+                  }
                   max={100}
                   step={5}
                   className="w-full"
+                  disabled={updateAiSettingsMutation.isPending}
                 />
                 <p className="text-xs text-muted-foreground">
                   PRs with failure probability above this threshold will be
@@ -200,7 +329,13 @@ export default function Settings() {
                     Use Claude AI for automated code review comments
                   </p>
                 </div>
-                <Switch defaultChecked={data?.enableLlmReview || false} />
+                <Switch
+                  checked={aiForm.enableLlmReview}
+                  onCheckedChange={(checked) =>
+                    handleAiSettingChange("enableLlmReview", checked)
+                  }
+                  disabled={updateAiSettingsMutation.isPending}
+                />
               </div>
 
               <Separator />
@@ -212,7 +347,13 @@ export default function Settings() {
                     Use machine learning model for test failure prediction
                   </p>
                 </div>
-                <Switch defaultChecked={data?.enableMlPrediction || false} />
+                <Switch
+                  checked={aiForm.enableMlPrediction}
+                  onCheckedChange={(checked) =>
+                    handleAiSettingChange("enableMlPrediction", checked)
+                  }
+                  disabled={updateAiSettingsMutation.isPending}
+                />
               </div>
             </div>
           </CardContent>
