@@ -11,12 +11,10 @@ export const getAnalyticsData = async (userId: string): Promise<AnalyticsPayload
 
   const profileId = profile.id;
 
-  // ✅ Total PRs analyzed
   const totalPRsAnalyzed = await prisma.pullRequest.count({
     where: { repository: { userProfileId: profileId } }
   });
 
-  // ✅ Average response time
   const avgLatency = await prisma.pullRequest.aggregate({
     _avg: { analysisDuration: true },
     where: {
@@ -25,7 +23,6 @@ export const getAnalyticsData = async (userId: string): Promise<AnalyticsPayload
     }
   });
 
-  // ✅ Success Rate
   const correctPredictions = await prisma.pullRequest.count({
     where: {
       repository: { userProfileId: profileId },
@@ -48,12 +45,10 @@ export const getAnalyticsData = async (userId: string): Promise<AnalyticsPayload
       ? 0
       : parseFloat(((correctPredictions / totalEvaluated) * 100).toFixed(2));
 
-  // ✅ Active repositories
   const activeRepositories = await prisma.repository.count({
     where: { userProfileId: profileId }
   });
 
-  // ✅ Repository comparison
   const repoComparison = await prisma.repository.findMany({
     where: { userProfileId: profileId },
     include: { pullRequests: true }
@@ -80,7 +75,6 @@ export const getAnalyticsData = async (userId: string): Promise<AnalyticsPayload
     };
   });
 
-  // ✅ REAL LLM Feedback Quality (average rating)
   const ratingData = await prisma.pullRequest.aggregate({
     _avg: { rating: true },
     where: {
@@ -91,12 +85,26 @@ export const getAnalyticsData = async (userId: string): Promise<AnalyticsPayload
 
   const llmFeedbackQuality = parseFloat((ratingData._avg.rating || 0).toFixed(2));
 
+  const llmFeedbackHistory = await prisma.ratingHistory.findMany({
+    where: {
+      pullRequest: {
+        repository: { userProfileId: profileId }
+      }
+    },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      rating: true,
+      createdAt: true
+    }
+  });
+
   return {
     totalPRsAnalyzed,
     successRate,
     averageResponseTime: parseFloat((avgLatency._avg.analysisDuration || 0).toFixed(2)),
     activeRepositories,
     llmFeedbackQuality,
+    llmFeedbackHistory,
     repositoryComparison
   };
 };

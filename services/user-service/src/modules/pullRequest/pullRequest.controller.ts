@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
-import { getPullRequestData } from "./pullRequest.service";
-import * as userService from "../../services/user.service";
+import { getPullRequestData, ratePullRequest as ratePR } from "./pullRequest.service";
 
 export const getPullRequestDetails = async (req: Request, res: Response) => {
   try {
@@ -15,7 +14,7 @@ export const getPullRequestDetails = async (req: Request, res: Response) => {
   }
 };
 
-export const ratePullRequest = async (req, res) => {
+export const ratePullRequest = async (req: Request, res: Response) => { // ✅ Add types
   try {
     const prId = Number(req.params.id);
     const { rating } = req.body;
@@ -24,7 +23,7 @@ export const ratePullRequest = async (req, res) => {
       return res.status(400).json({ error: "Rating must be between 1 and 5" });
     }
 
-    const updated = await userService.ratePullRequest(prId, rating);
+    const updated = await ratePR(prId, rating); // ✅ Use local service function
 
     return res.json({
       success: true,

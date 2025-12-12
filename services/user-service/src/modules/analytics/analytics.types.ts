@@ -3,7 +3,11 @@ export interface AnalyticsPayload {
   successRate: number;
   averageResponseTime: number;
   activeRepositories: number;
-  llmFeedbackQuality: number; // ✅ NEW
+  llmFeedbackQuality: number;
+  llmFeedbackHistory: { 
+    rating: number;
+    createdAt: Date;
+  }[];
   repositoryComparison: {
     name: string;
     prsAnalyzed: number;
