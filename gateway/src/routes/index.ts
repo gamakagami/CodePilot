@@ -1,37 +1,49 @@
 import { Router } from "express";
-import { proxyRequest } from "../utils/proxy";
-import { handleGitHubWebhook } from '../webhooks/githubWebhook';
+import { createProxyMiddleware } from "http-proxy-middleware";
+import requireAuth from "../middleware/auth";
 
 const router = Router();
 
-const AUTH_URL = process.env.AUTH_SERVICE_URL || "http://localhost:4001";
-const USER_URL = process.env.USER_SERVICE_URL || "http://localhost:4002";
+console.log("AUTH:", process.env.AUTH_SERVICE_URL);
+console.log("USER:", process.env.USER_SERVICE_URL);
 
-// AUTH
-router.use("/auth", (req, res) =>
-  proxyRequest(req, res, `${AUTH_URL}/auth${req.path}`)
+// ✅ AUTH SERVICE (public)
+router.use(
+  "/auth",
+  createProxyMiddleware({
+    target: process.env.AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { "^/api/auth": "/auth" },
+    logLevel: "debug"
+  })
 );
 
-// USERS
-router.use("/users", (req, res) =>
-  proxyRequest(req, res, `${USER_URL}/users${req.path}`)
-);
+// ✅ USER SERVICE (protected)
+router.use(
+  "/users",
+  requireAuth,
+  createProxyMiddleware({
+    target: process.env.USER_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: { "^/api/users": "/users" },
+    logLevel: "debug",
 
-// DASHBOARD
-router.use("/dashboard", (req, res) =>
-  proxyRequest(req, res, `${USER_URL}/dashboard${req.path}`)
-);
+    onProxyReq: (proxyReq, req) => {
+      console.log("→ USER SERVICE");
+      console.log("URL:", req.originalUrl);
+      console.log("Method:", req.method);
+      console.log("Headers:", req.headers);
+    },
 
-// PULL REQUESTS
-router.use("/pullrequests", (req, res) =>
-  proxyRequest(req, res, `${USER_URL}/pullrequests${req.path}`)
-);
+    onProxyRes: (proxyRes) => {
+      console.log("← USER SERVICE RESPONSE:", proxyRes.statusCode);
+    },
 
-// ANALYTICS
-router.use("/analytics", (req, res) =>
-  proxyRequest(req, res, `${USER_URL}/analytics${req.path}`)
+    onError: (err, req, res) => {
+      console.error("USER PROXY ERROR:", err.message);
+      res.status(500).json({ error: "Gateway → User service error" });
+    }
+  })
 );
-
-router.post('/webhooks/github', handleGitHubWebhook);
 
 export default router;
