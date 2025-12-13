@@ -17,9 +17,17 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, Clock, Target, GitPullRequest } from "lucide-react";
+import {
+  TrendingUp,
+  Clock,
+  Target,
+  GitPullRequest,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react";
 import { useAnalyticsQuery } from "@/api/analytics";
 import { useState } from "react";
+import { Button } from "react-day-picker";
 
 export default function Insights() {
   const { data, isLoading, isError } = useAnalyticsQuery();
