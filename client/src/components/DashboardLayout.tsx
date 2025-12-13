@@ -22,6 +22,7 @@ import {
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useFetchProfile } from "@/api/setting";
+import { useLogoutMutation } from "@/api/auth";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -43,9 +44,10 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     document.documentElement.classList.toggle("dark");
   };
 
+  const logoutMutation = useLogoutMutation();
+
   const handleLogout = () => {
-    // Handle logout logic
-    window.location.href = "/";
+    logoutMutation.mutate();
   };
 
   const navItems = [
