@@ -66,7 +66,6 @@ export default function Settings() {
     }
   }, [data]);
 
-  // Track profile changes
   useEffect(() => {
     if (data) {
       const hasChanges =
@@ -222,7 +221,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* API & Integration Settings */}
         <Card>
           <CardHeader>
             <CardTitle>API & Integration Settings</CardTitle>

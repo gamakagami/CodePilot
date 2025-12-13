@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useFetchProfile } from "@/api/setting";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -29,6 +30,7 @@ interface DashboardLayoutProps {
 export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { data } = useFetchProfile();
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark");
@@ -56,8 +58,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     {
       icon: GitPullRequest,
       label: "Pull Requests",
-      href: "/pr/1",
-      match: (path: string) => path.startsWith("/pr"),
+      href: "/pullRequests/1",
+      match: (path: string) => path.startsWith("/pullRequests"),
     },
     {
       icon: BarChart3,
@@ -107,7 +109,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     className="relative h-9 w-9 rounded-full"
                   >
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src="" alt="User" />
+                      <AvatarImage src={data?.avatarUrl || ""} alt="User" />
                       <AvatarFallback className="bg-primary text-primary-foreground">
                         DV
                       </AvatarFallback>
