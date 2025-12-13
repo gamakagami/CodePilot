@@ -6,37 +6,163 @@ const client = new Anthropic({
 
 export async function runLLMPredict(analysis: any): Promise<any> {
   const prompt = `
-You are a MERN stack code review risk predictor.
-Focus ONLY on MongoDB, Express, React, and Node.js projects.
+You are an expert MERN stack code review risk predictor with deep knowledge of MongoDB, Express.js, React, and Node.js ecosystems.
 
-You are given a full analysis of a pull request, including:
-- Abstract Syntax Tree (AST)
-- Functions and imports
-- Code metrics (lines, complexity, etc.)
-- Dependency graph (direct, reverse, cycles, impact radius)
-- Similar code patterns with similarity scores
-- MERN-specific patterns (error handling, validation, MongoDB usage, Express usage, potential issues)
-- Warnings
-- Numeric prediction features (timestamp, developer, module_type, lines_added, lines_deleted, files_changed, avg_function_complexity, code_coverage_change, build_duration, contains_test_changes, previous_failure_rate)
+Analyze the following pull request data to predict the probability of test failures or production issues.
 
-Use ALL of this information to estimate the probability that tests will fail.
-Consider MERN-specific issues such as:
-- Missing try/catch in async Express routes
-- Lack of validation middleware
-- Incorrect MongoDB schema usage
-- Poor React component state handling
-- Coupling issues between frontend and backend
-- Build/test pipeline reliability
-
-Analysis JSON:
+## Analysis Data:
 ${JSON.stringify(analysis, null, 2)}
 
-Respond ONLY in strict JSON with this schema:
+## MERN Stack Risk Assessment Criteria:
+
+### Backend (Node.js + Express + MongoDB):
+1. **Error Handling:**
+   - Async/await wrapped in try-catch blocks
+   - Global error middleware implemented
+   - Unhandled promise rejection handlers
+   - MongoDB connection error handling
+
+2. **Security:**
+   - Input validation (express-validator, Joi, Zod)
+   - SQL/NoSQL injection prevention
+   - Rate limiting middleware
+   - CORS configuration
+   - Helmet.js security headers
+   - Authentication/authorization (JWT, sessions)
+   - Environment variables for secrets
+
+3. **MongoDB Best Practices:**
+   - Proper schema design with Mongoose
+   - Index usage for queries
+   - Connection pooling
+   - Transaction handling for multi-document operations
+   - Mongoose middleware (pre/post hooks)
+   - Proper error handling for DB operations
+   - Avoiding deprecated methods
+
+4. **Express Patterns:**
+   - Route organization and modularity
+   - Middleware order (body-parser, CORS, auth, routes, error)
+   - Request validation before DB operations
+   - Response status codes consistency
+   - API versioning
+   - Proper use of next() in middleware
+
+5. **Node.js Concerns:**
+   - Memory leaks (event listeners, timers)
+   - Blocking operations in event loop
+   - Proper stream handling
+   - File system operations safety
+   - Child process security
+
+### Frontend (React):
+1. **Component Architecture:**
+   - Proper component composition
+   - Appropriate use of hooks (useState, useEffect, useMemo, useCallback)
+   - Avoiding unnecessary re-renders
+   - Custom hooks for reusable logic
+   - Prop drilling vs context usage
+
+2. **State Management:**
+   - Local vs global state decisions
+   - Redux/Context API patterns
+   - Immutable state updates
+   - Async action handling
+   - State synchronization with backend
+
+3. **Performance:**
+   - Code splitting and lazy loading
+   - Memoization (React.memo, useMemo)
+   - Virtual scrolling for large lists
+   - Debouncing/throttling user inputs
+   - Image optimization
+
+4. **Data Fetching:**
+   - Proper API error handling
+   - Loading and error states
+   - Request cancellation (AbortController)
+   - Caching strategies
+   - Race condition prevention
+   - React Query/SWR patterns
+
+5. **Security:**
+   - XSS prevention (proper escaping)
+   - CSRF token handling
+   - Secure storage of tokens (httpOnly cookies vs localStorage)
+   - Input sanitization
+
+### Full Stack Integration:
+1. **API Design:**
+   - RESTful conventions or GraphQL consistency
+   - Consistent error response format
+   - Pagination implementation
+   - File upload handling (multer)
+   - WebSocket integration (Socket.io)
+
+2. **Type Safety:**
+   - TypeScript usage on both ends
+   - Shared type definitions
+   - API contract validation
+   - Zod/Yup schema matching
+
+3. **Testing:**
+   - Unit tests for utilities and helpers
+   - Integration tests for API endpoints
+   - React component testing (RTL)
+   - E2E tests coverage
+   - MongoDB in-memory server for tests
+   - Proper test isolation and cleanup
+
+4. **Build & Deployment:**
+   - Environment-specific configs
+   - Build optimization
+   - Bundle size monitoring
+   - Database migration strategy
+   - Rollback procedures
+
+### Code Quality Indicators:
+- Cyclomatic complexity (>10 is risky)
+- Function length (>50 lines is concerning)
+- File size (>300 lines needs review)
+- Dependency graph depth
+- Code duplication
+- Import cycles
+- Dead code
+
+### Risk Factors (High Priority):
+- Changes to authentication/authorization logic
+- Database schema modifications without migrations
+- Middleware order changes
+- CORS or security middleware removal
+- Environment variable changes
+- Dependency version updates (especially major)
+- Error handling removal
+- Test file deletion or skipping
+- Direct MongoDB queries without validation
+- useState in loops or conditions
+- Missing useEffect dependencies
+- Infinite re-render patterns
+
+## Your Task:
+Based on the analysis data and MERN best practices above, calculate:
+1. Overall failure probability (0.0 to 1.0)
+2. Binary prediction (0 = likely pass, 1 = likely fail)
+
+Consider:
+- Severity and quantity of anti-patterns
+- Missing critical safeguards
+- Complexity metrics
+- Test coverage changes
+- Historical failure patterns
+- Code change size and scope
+
+Respond ONLY with valid JSON in this exact format:
 {
   "predicted_failure": 0 or 1,
-  "failure_probability": float between 0 and 1
+  "failure_probability": 0.0 to 1.0
 }
-Do not include explanations, text, or extra fields.
+
+No additional text, explanations, or fields. Just pure JSON.
 `;
 
 
