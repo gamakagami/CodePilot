@@ -282,10 +282,34 @@ export const submitPredictionFeedback = async (req: any, res: Response) => {
       });
     }
 
-    // Update the actualFailure field
-    const updated = await prisma.pullRequest.update({
-      where: { id: prId },
-      data: { actualFailure },
+    // ✅ Update both PR and repository in a transaction
+    const updated = await prisma.$transaction(async (tx) => {
+      // Update the actualFailure field
+      const updatedPr = await tx.pullRequest.update({
+        where: { id: prId },
+        data: { actualFailure },
+      });
+
+      // ✅ Recalculate repository failure rate
+      const allPrs = await tx.pullRequest.findMany({
+        where: {
+          repositoryId: pr.repositoryId,
+          actualFailure: { not: null }
+        },
+        select: { actualFailure: true }
+      });
+
+      if (allPrs.length > 0) {
+        const failures = allPrs.filter(p => p.actualFailure === true).length;
+        const failureRate = failures / allPrs.length;
+
+        await tx.repository.update({
+          where: { id: pr.repositoryId },
+          data: { failureRate }
+        });
+      }
+
+      return updatedPr;
     });
 
     return res.json({
