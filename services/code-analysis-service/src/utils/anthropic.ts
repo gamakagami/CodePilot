@@ -2,7 +2,7 @@ import { Anthropic } from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources/messages";
 
 if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn("⚠️ Missing ANTHROPIC_API_KEY in .env");
+  console.warn("Missing ANTHROPIC_API_KEY in .env");
 }
 
 export const anthropic = new Anthropic({
@@ -12,7 +12,7 @@ export const anthropic = new Anthropic({
 export async function runClaude(prompt: string) {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-3-haiku-20240307", // ✅ Changed here too
+      model: "claude-3-haiku-20240307",
       max_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
     });

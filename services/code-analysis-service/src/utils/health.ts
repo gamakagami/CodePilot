@@ -16,26 +16,26 @@ export async function checkServiceHealth() {
     await session.run("RETURN 1");
     await session.close();
     health.neo4j = true;
-    console.log("✅ Neo4j connection successful");
+    console.log("Neo4j connection successful");
   } catch (error: any) {
-    console.error("❌ Neo4j connection failed:", error.message);
+    console.error("Neo4j connection failed:", error.message);
   }
 
   // Check Pinecone
   try {
     await embedIndex.describeIndexStats();
     health.pinecone = true;
-    console.log("✅ Pinecone connection successful");
+    console.log("Pinecone connection successful");
   } catch (error: any) {
-    console.error("❌ Pinecone connection failed:", error.message);
+    console.error("Pinecone connection failed:", error.message);
   }
 
-  // Check Cohere (optional - just log if missing)
+  // Check Cohere
   if (process.env.COHERE_API_KEY) {
     health.cohere = true;
-    console.log("✅ Cohere API key configured");
+    console.log("Cohere API key configured");
   } else {
-    console.warn("⚠️ Cohere API key not configured");
+    console.warn("Cohere API key not configured");
   }
 
   health.overall = health.neo4j && health.pinecone;

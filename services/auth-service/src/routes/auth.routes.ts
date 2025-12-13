@@ -9,13 +9,13 @@ import { logout } from "../controllers/auth.controller";
 
 const router = Router();
 
-// Step 1: redirect to GitHub
+// redirect to GitHub
 router.get("/github", redirectToGitHub);
 
-// Step 2: GitHub OAuth callback
+// GitHub OAuth callback
 router.get("/github/callback", githubCallback);
 
-// Get current user with JWT
+// current user with JWT
 router.get("/me", requireAuth, getCurrentUser);
 
 // Logout route

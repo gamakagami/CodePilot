@@ -20,8 +20,8 @@ export const predictionController = {
               : "low",
           recommendation:
             result.predicted_failure === 1
-              ? "⚠️ High risk - Recommend additional review and testing"
-              : "✅ Low risk - Safe to proceed with standard review"
+              ? "High risk - Recommend additional review and testing"
+              : "Low risk - Safe to proceed with standard review"
         }
       });
     } catch (error: any) {

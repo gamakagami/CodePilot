@@ -1,11 +1,9 @@
 import dotenv from "dotenv";
-dotenv.config(); // MUST be first
-
+dotenv.config();
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import "express-async-errors";
-
 import gatewayRoutes from "./routes";
 import { errorHandler } from "./middleware/errorHandler";
 
@@ -19,9 +17,6 @@ const app = express();
 
 app.use(helmet());
 app.use(cors());
-
-// ✅ DO NOT parse JSON here — proxy must forward raw body
-// app.use(express.json());
 
 app.get("/health", (req, res) => {
   res.json({ status: "gateway ok" });

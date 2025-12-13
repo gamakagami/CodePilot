@@ -6,7 +6,7 @@ export default function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  console.error("🔥 Error:", err);
+  console.error("Error:", err);
 
   res.status(500).json({
     success: false,

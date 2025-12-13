@@ -8,7 +8,7 @@ export const cohere = new CohereClient({
 export class EmbeddingService {
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      console.log("📤 Generating embedding with Cohere...");
+      console.log("Generating embedding with Cohere...");
 
       const response = await cohere.embed({
         texts: [text],
@@ -30,11 +30,11 @@ export class EmbeddingService {
         throw new Error("Unexpected embedding response format");
       }
 
-      console.log(`✅ Generated ${embedding.length}-dimensional embedding`);
+      console.log(`Generated ${embedding.length}-dimensional embedding`);
       return embedding;
 
     } catch (err) {
-      console.error("❌ Embedding generation failed:", err);
+      console.error("Embedding generation failed:", err);
       throw new Error("Failed generating embeddings from Cohere");
     }
   }

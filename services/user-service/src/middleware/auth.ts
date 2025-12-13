@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-
-dotenv.config(); // <-- make sure .env is loaded
+dotenv.config();
 
 export default function authMiddleware(req: any, res: any, next: any) {
   const authHeader = req.headers.authorization;
@@ -11,7 +10,7 @@ export default function authMiddleware(req: any, res: any, next: any) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  // Wrong format (ex: token without 'Bearer ')
+  // Wrong format
   if (!authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Invalid token format" });
   }

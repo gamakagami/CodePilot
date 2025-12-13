@@ -72,14 +72,13 @@ export interface CodeAnalysisResult {
   // Analysis warnings (non-critical errors)
   warnings: string[];
 
-  // 🆕 Ready-to-use prediction features
+  // prediction features
   predictionFeatures: PredictionFeatures;
 }
 
 export interface AnalysisInput {
   code: string;
   fileId?: string;
-  // Metadata for prediction
   developer?: string;
   linesAdded?: number;
   linesDeleted?: number;
@@ -104,42 +103,42 @@ class AnalysisService {
     const warnings: string[] = [];
     const fileId = input.fileId || `file_${Date.now()}`;
     
-    console.log(`🔍 Starting analysis for ${fileId}...`);
+    console.log(`Starting analysis for ${fileId}...`);
 
     // Step 1: Parse code structure
     let parsed: any;
     try {
       parsed = await this.parserService.parseCode(input.code);
-      console.log(`✅ Parsed: ${parsed.functions.length} functions, ${parsed.imports.length} imports`);
+      console.log(`Parsed: ${parsed.functions.length} functions, ${parsed.imports.length} imports`);
     } catch (err: any) {
-      console.error("❌ Parse error:", err);
+      console.error("Parse error:", err);
       throw new Error(`Code parsing failed: ${err.message}`);
     }
 
     // Step 2: Register in graph and analyze dependencies
     let dependencies: DependencyInfo;
     try {
-      console.log(`📊 Registering file in Neo4j: ${fileId}`);
+      console.log(`Registering file in Neo4j: ${fileId}`);
       await this.graphService.registerFile(fileId);
       
       // Link imports as dependencies
-      console.log(`🔗 Linking ${parsed.imports.length} imports...`);
+      console.log(`Linking ${parsed.imports.length} imports...`);
       for (const imp of parsed.imports) {
         const importPath = this.extractImportPath(imp);
         if (importPath) {
           try {
             await this.graphService.linkDependency(fileId, importPath, "IMPORTS");
           } catch (linkErr: any) {
-            console.warn(`⚠️ Failed to link dependency ${importPath}:`, linkErr.message);
+            console.warn(`Failed to link dependency ${importPath}:`, linkErr.message);
             warnings.push(`Failed to link dependency: ${importPath}`);
           }
         }
       }
 
       dependencies = await this.analyzeDependencies(fileId);
-      console.log(`✅ Graph analysis: ${dependencies.directDependencies.length} deps, cycles: ${dependencies.hasCycles}`);
+      console.log(`Graph analysis: ${dependencies.directDependencies.length} deps, cycles: ${dependencies.hasCycles}`);
     } catch (err: any) {
-      console.error("❌ Neo4j error:", err);
+      console.error("Neo4j error:", err);
       console.error("Full error details:", {
         message: err.message,
         code: err.code,
@@ -159,9 +158,9 @@ class AnalysisService {
     let metrics: CodeMetrics;
     try {
       metrics = this.calculateMetrics(input.code, parsed);
-      console.log(`✅ Metrics calculated: ${metrics.functionCount} functions, complexity: ${metrics.cyclomaticComplexity}`);
+      console.log(`Metrics calculated: ${metrics.functionCount} functions, complexity: ${metrics.cyclomaticComplexity}`);
     } catch (err: any) {
-      console.error("❌ Metrics calculation error:", err);
+      console.error("Metrics calculation error:", err);
       warnings.push(`Metrics calculation partially failed: ${err.message}`);
       metrics = {
         totalLines: 0,
@@ -175,16 +174,16 @@ class AnalysisService {
     // Step 4: Search for similar code patterns
     let similarPatterns: SimilarCode[] = [];
     try {
-      console.log(`🔍 Searching for similar patterns in Pinecone...`);
+      console.log(`Searching for similar patterns in Pinecone...`);
       const results = await this.embedService.searchSimilar(input.code, 5);
       similarPatterns = results.map(m => ({
         id: m.id,
         score: m.score || 0,
         metadata: m.metadata
       }));
-      console.log(`✅ Found ${similarPatterns.length} similar code patterns`);
+      console.log(`Found ${similarPatterns.length} similar code patterns`);
     } catch (err: any) {
-      console.error("❌ Pinecone search error:", err);
+      console.error("Pinecone search error:", err);
       console.error("Full error details:", {
         message: err.message,
         code: err.code,
@@ -195,11 +194,11 @@ class AnalysisService {
 
     // Step 5: Store embedding for future similarity searches
     try {
-      console.log(`💾 Storing embedding for ${fileId}...`);
+      console.log(`Storing embedding for ${fileId}...`);
       await this.embedService.storeEmbedding(fileId, input.code);
-      console.log(`✅ Stored embedding for ${fileId}`);
+      console.log(`Stored embedding for ${fileId}`);
     } catch (err: any) {
-      console.error("❌ Pinecone storage error:", err);
+      console.error("Pinecone storage error:", err);
       console.error("Full error details:", {
         message: err.message,
         code: err.code,
@@ -212,9 +211,9 @@ class AnalysisService {
     let mernPatterns: MERNPatterns;
     try {
       mernPatterns = this.detectMERNPatterns(input.code, parsed);
-      console.log(`✅ MERN analysis: ${mernPatterns.potentialIssues.length} issues detected`);
+      console.log(`MERN analysis: ${mernPatterns.potentialIssues.length} issues detected`);
     } catch (err: any) {
-      console.error("❌ MERN pattern detection error:", err);
+      console.error("MERN pattern detection error:", err);
       warnings.push(`MERN pattern detection failed: ${err.message}`);
       mernPatterns = {
         hasErrorHandling: false,
@@ -225,7 +224,7 @@ class AnalysisService {
       };
     }
 
-    // Step 7: 🆕 Build prediction features
+    // Step 7: Build prediction features
     const predictionFeatures = this.buildPredictionFeatures(
       input,
       fileId,
@@ -233,9 +232,9 @@ class AnalysisService {
       mernPatterns,
       parsed
     );
-    console.log(`✅ Prediction features ready: module=${predictionFeatures.module_type}`);
+    console.log(`Prediction features ready: module=${predictionFeatures.module_type}`);
 
-    console.log(`✅ Analysis complete with ${warnings.length} warnings`);
+    console.log(`Analysis complete with ${warnings.length} warnings`);
 
     const timestamp = new Date().toISOString();
 
@@ -255,7 +254,7 @@ class AnalysisService {
   }
 
   /**
-   * 🆕 Build features ready for ML prediction
+   * Build features ready for ML prediction
    */
   private buildPredictionFeatures(
     input: AnalysisInput,
@@ -348,7 +347,7 @@ class AnalysisService {
         impactRadius: impact
       };
     } catch (err: any) {
-      console.error("❌ Dependency analysis error:", err);
+      console.error("Dependency analysis error:", err);
       throw new Error(`Dependency analysis failed: ${err.message}`);
     }
   }

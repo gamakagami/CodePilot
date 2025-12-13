@@ -13,8 +13,8 @@ export interface PredictionInput {
 }
 
 export interface PredictionResult {
-  predicted_failure: number;      // 0 or 1
-  failure_probability: number;    // 0.0 to 1.0
+  predicted_failure: number;     
+  failure_probability: number;   
 }
 
 export interface PredictionResponse {

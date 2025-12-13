@@ -11,7 +11,7 @@ export const getProfile = async (userId: string) => {
         include: {
           pullRequests: {
             orderBy: {
-              number: 'desc' // Order by PR number descending
+              number: 'desc'
             }
           }
         }
@@ -180,7 +180,7 @@ export const syncRepositories = async (userId: string) => {
 ,
         update: {},
         create: {
-  number: pr.number, // ✅ store GitHub PR number
+  number: pr.number,
   title: pr.title,
   author: pr.user.login,
   status: pr.state,
@@ -236,7 +236,7 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
     `https://api.github.com/repos/${repo.owner.login}/${repo.name}/pulls`,
     {
       params: {
-        state: "all", // Get open, closed, and merged PRs
+        state: "all",
         per_page: 100
       },
       headers: {
@@ -252,7 +252,7 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
     await prisma.pullRequest.upsert({
       where: {
         number_repositoryId: {
-          number: pr.number, // GitHub PR number (e.g., 2 for PR #2)
+          number: pr.number,
           repositoryId: createdRepo.id
         }
       },
@@ -263,7 +263,7 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
         repoName: repo.name
       },
       create: {
-        number: pr.number, // Store GitHub PR number
+        number: pr.number,
         title: pr.title,
         author: pr.user.login,
         status: pr.state,
@@ -298,8 +298,6 @@ export const analyzePullRequest = async (prId: number) => {
   if (!userProfile.githubToken) throw new Error("GitHub token missing");
   if (!userProfile.githubUsername) throw new Error("GitHub username missing");
 
-  // 1. Get PR number from GitHub (we only stored title/status)
-  // For now, we assume title is unique enough; later you might store GH `number` explicitly
   const ghPrsResponse = await axios.get(
     `https://api.github.com/repos/${userProfile.githubUsername}/${repository.name}/pulls`,
     {
@@ -319,7 +317,6 @@ export const analyzePullRequest = async (prId: number) => {
 
   const prNumber = matchingGhPr.number;
 
-  // 2. Fetch PR details
   const prDetailsResponse = await axios.get(
     `https://api.github.com/repos/${userProfile.githubUsername}/${repository.name}/pulls/${prNumber}`,
     {
@@ -332,7 +329,6 @@ export const analyzePullRequest = async (prId: number) => {
 
   const prDetails = prDetailsResponse.data;
 
-  // 3. Fetch changed files
   const filesResponse = await axios.get(
     `https://api.github.com/repos/${userProfile.githubUsername}/${repository.name}/pulls/${prNumber}/files`,
     {
@@ -345,10 +341,8 @@ export const analyzePullRequest = async (prId: number) => {
 
   const files = filesResponse.data;
 
-  // 4. Build orchestrator payload
   const payload = buildOrchestratorPayload(pr, prDetails, files, repository);
 
-  // 5. Call orchestrator
   const orchestratorResponse = await axios.post(
     process.env.ORCHESTRATOR_URL || "http://orchestrator:3000/analyze",
     payload
@@ -356,7 +350,6 @@ export const analyzePullRequest = async (prId: number) => {
 
   const analysis = orchestratorResponse.data;
 
-  // 6. Store analysis result in DB
   const updatedPr = await prisma.pullRequest.update({
     where: { id: prId },
     data: {
@@ -367,7 +360,6 @@ export const analyzePullRequest = async (prId: number) => {
     }
   });
 
-  // Optionally update repository.lastAnalyzed / failureRate
   await prisma.repository.update({
     where: { id: repository.id },
     data: {
@@ -408,7 +400,6 @@ const buildOrchestratorPayload = (
 
   const combinedCode = files
     .map((f) => {
-      // You can swap this to f.patch or fetch full file contents later
       return `// File: ${f.filename}\n${f.patch ?? ""}`;
     })
     .join("\n\n");
@@ -420,8 +411,8 @@ const buildOrchestratorPayload = (
     linesAdded: totalAdditions,
     linesDeleted: totalDeletions,
     filesChanged: files.length,
-    codeCoverageChange: 0, // placeholder until you hook coverage
-    buildDuration: 0, // placeholder until you hook CI
+    codeCoverageChange: 0,
+    buildDuration: 0,
     previousFailureRate: repo.failureRate ?? 0
   };
 };
@@ -446,7 +437,6 @@ export const buildPullRequestPayload = async (prId: number) => {
   if (!userProfile.githubToken) throw new Error("GitHub token missing");
   if (!userProfile.githubUsername) throw new Error("GitHub username missing");
 
-  // ✅ Fetch PR list to find GitHub PR number
   const ghPrsResponse = await axios.get(
     `https://api.github.com/repos/${userProfile.githubUsername}/${repository.name}/pulls`,
     {
@@ -464,7 +454,6 @@ export const buildPullRequestPayload = async (prId: number) => {
 
   const prNumber = matchingGhPr.number;
 
-  // ✅ Fetch PR details
   const prDetailsResponse = await axios.get(
     `https://api.github.com/repos/${userProfile.githubUsername}/${repository.name}/pulls/${prNumber}`,
     {
@@ -477,7 +466,6 @@ export const buildPullRequestPayload = async (prId: number) => {
 
   const prDetails = prDetailsResponse.data;
 
-  // ✅ Fetch changed files
   const filesResponse = await axios.get(
     `https://api.github.com/repos/${userProfile.githubUsername}/${repository.name}/pulls/${prNumber}/files`,
     {
@@ -490,7 +478,6 @@ export const buildPullRequestPayload = async (prId: number) => {
 
   const files = filesResponse.data;
 
-  // ✅ Build orchestrator payload
   return buildOrchestratorPayload(pr, prDetails, files, repository);
 };
 
@@ -514,7 +501,6 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
 
     if (!pr) throw new Error("Pull request not found");
 
-    // ✅ Update PR metadata
     const updatedPr = await tx.pullRequest.update({
       where: { id: prId },
       data: {
@@ -527,7 +513,6 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
       }
     });
 
-    // ✅ Update repository's lastAnalyzed and calculate failure rate
     const allPrs = await tx.pullRequest.findMany({
       where: {
         repositoryId: pr.repositoryId,
@@ -545,17 +530,15 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
     await tx.repository.update({
       where: { id: pr.repositoryId },
       data: {
-        lastAnalyzed: new Date(), // ✅ This was missing!
+        lastAnalyzed: new Date(),
         failureRate: failureRate ?? undefined
       }
     });
 
-    // ✅ Remove old review comments
     await tx.reviewComment.deleteMany({
       where: { pullRequestId: prId }
     });
 
-    // ✅ Insert review comments from issues[]
     if (analysis.review?.issues?.length) {
       await tx.reviewComment.createMany({
         data: analysis.review.issues.map(issue => ({

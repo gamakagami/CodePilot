@@ -94,7 +94,6 @@ export const analyzePullRequest = async (req: any, res: Response) => {
       return res.status(400).json({ error: "Invalid pull request id" });
     }
 
-    // ✅ Only build the orchestrator payload — do NOT analyze
     const payload = await userService.buildPullRequestPayload(prId);
 
     return res.json(payload);
@@ -179,7 +178,6 @@ export const submitPullRequest = async (req, res) => {
 
 export const getMetrics = async (req, res) => {
   try {
-    // ✅ Step 1: Convert JWT userId (string) → profileId (int)
     const profile = await prisma.userProfile.findUnique({
       where: { userId: req.user.id },
       select: { id: true },
@@ -191,7 +189,6 @@ export const getMetrics = async (req, res) => {
 
     const profileId = profile.id;
 
-    // ✅ Avg CI Latency (user-scoped)
     const avgAnalysis = await prisma.pullRequest.aggregate({
       _avg: { analysisDuration: true },
       where: {
@@ -202,12 +199,10 @@ export const getMetrics = async (req, res) => {
       },
     });
 
-    // ✅ Active Repositories (user-scoped)
     const activeRepositories = await prisma.repository.count({
       where: { userProfileId: profileId },
     });
 
-    // ✅ Model Accuracy (user-scoped)
     const correctPredictions = await prisma.pullRequest.count({
       where: {
         repository: { userProfileId: profileId },
@@ -284,7 +279,6 @@ export const submitPredictionFeedback = async (req: any, res: Response) => {
       });
     }
 
-    // ✅ Update both PR and repository in a transaction
     const updated = await prisma.$transaction(async (tx) => {
       // Update the actualFailure field
       const updatedPr = await tx.pullRequest.update({
@@ -292,7 +286,6 @@ export const submitPredictionFeedback = async (req: any, res: Response) => {
         data: { actualFailure },
       });
 
-      // ✅ Recalculate repository failure rate
       const allPrs = await tx.pullRequest.findMany({
         where: {
           repositoryId: pr.repositoryId,

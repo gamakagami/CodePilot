@@ -6,21 +6,19 @@ const prisma = new PrismaClient();
 
 class PredictionService {
   async predictFailure(data: PredictionInput): Promise<PredictionResult> {
-    console.log("🔮 Predicting failure with LLM for:", {
+    console.log("Predicting failure with LLM for:", {
       developer: data.developer,
       module: data.module_type,
       complexity: data.avg_function_complexity
     });
 
-    // Run LLM prediction
     const result = await runLLMPredict(data);
     console.log(
-      `✅ Prediction complete: ${result.predicted_failure ? "FAIL" : "PASS"} (${(
+      `Prediction complete: ${result.predicted_failure ? "FAIL" : "PASS"} (${(
         result.failure_probability * 100
       ).toFixed(1)}%)`
     );
 
-    // Store prediction in DB
     try {
       await prisma.prediction.create({
         data: {
@@ -39,9 +37,9 @@ class PredictionService {
           failureProbability: result.failure_probability
         }
       });
-      console.log("💾 Prediction stored in database");
+      console.log("Prediction stored in database");
     } catch (err: any) {
-      console.error("⚠️ Failed to store prediction:", err.message);
+      console.error("Failed to store prediction:", err.message);
     }
 
     return result;

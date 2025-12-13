@@ -7,7 +7,7 @@ const router = Router();
 console.log("AUTH:", process.env.AUTH_SERVICE_URL);
 console.log("USER:", process.env.USER_SERVICE_URL);
 
-// ✅ AUTH SERVICE (public)
+// AUTH SERVICE (public)
 router.use(
   "/auth",
   createProxyMiddleware({
@@ -18,7 +18,7 @@ router.use(
   })
 );
 
-// ✅ USER SERVICE (protected)
+// USER SERVICE (protected)
 router.use(
   "/users",
   requireAuth,
@@ -41,7 +41,7 @@ router.use(
 
     onError: (err, req, res) => {
       console.error("USER PROXY ERROR:", err.message);
-      res.status(500).json({ error: "Gateway → User service error" });
+      res.status(500).json({ error: "Gateway -> User service error" });
     }
   })
 );

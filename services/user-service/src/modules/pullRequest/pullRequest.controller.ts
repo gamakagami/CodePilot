@@ -28,7 +28,7 @@ export const ratePullRequest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Rating must be between 1 and 5" });
     }
 
-    const updated = await ratePR(prId, rating); // ✅ Use local service function
+    const updated = await ratePR(prId, rating);
 
     return res.json({
       success: true,

@@ -1,7 +1,7 @@
 import { Pinecone } from "@pinecone-database/pinecone";
 
 if (!process.env.PINECONE_API_KEY) {
-  console.warn("⚠️ Missing PINECONE_API_KEY in .env");
+  console.warn("Missing PINECONE_API_KEY in .env");
 }
 
 export const pinecone = new Pinecone({

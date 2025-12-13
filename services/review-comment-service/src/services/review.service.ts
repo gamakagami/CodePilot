@@ -9,7 +9,7 @@ export const reviewService = {
     const llmResponse = await llmClient(prompt);
     const review = this.parseReviewResponse(llmResponse, request);
 
-    console.log(`✅ Review generated: ${review.issues.length} issues found`);
+    console.log(`Review generated: ${review.issues.length} issues found`);
     return review;
   },
   buildReviewPrompt(request: ReviewRequest): string {

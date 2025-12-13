@@ -19,11 +19,11 @@ export default function requireAuth(
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-    console.log("✅ JWT Verified:", decoded);
+    console.log("JWT Verified:", decoded);
     req.user = decoded;
     next();
   } catch (err: any) {
-    console.error("❌ JWT Verification Failed:", err.message);
+    console.error("JWT Verification Failed:", err.message);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 }

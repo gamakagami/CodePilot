@@ -25,8 +25,8 @@ export const githubCallback = async (req: Request, res: Response) => {
     // Issue JWT
     const token = jwtService.generateToken(user);
 
-    console.log("🔑 JWT Token issued for user:", user.email || user.githubId);
-    console.log("👉 TOKEN:", token);
+    console.log("JWT Token issued for user:", user.email || user.githubId);
+    console.log("TOKEN:", token);
 
     // Create user profile in user-service
     await userProfileService.createUserProfile(user.id, gitUser, token);
@@ -36,7 +36,7 @@ export const githubCallback = async (req: Request, res: Response) => {
     // Redirect to frontend with token
     return res.redirect(`http://localhost:3000/auth/success?token=${token}`);
   } catch (error: any) {
-    console.error("❌ GitHub callback error:", error);
+    console.error("GitHub callback error:", error);
     return res.redirect(`http://localhost:3000/auth/error?message=${error.message}`);
   }
 };
@@ -50,7 +50,7 @@ export const logout = async (req: Request, res: Response) => {
     return res.json({ message: "Logged out successfully. Please remove token on client side." });
 
   } catch (error: any) {
-    console.error("❌ Logout error:", error);
+    console.error("Logout error:", error);
     return res.status(500).json({ error: "Logout failed" });
   }
 };

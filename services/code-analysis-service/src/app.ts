@@ -2,12 +2,10 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import "express-async-errors";
-
 import parseRouter from "./modules/parse/parser.routes";
 import embedRouter from "./modules/embeddings/embed.routes";
 import graphRouter from "./modules/graph/graph.routes";
 import analysisRouter from "./modules/analysis/analysis.routes";
-
 
 export function createApp() {
   const app = express();
@@ -20,9 +18,6 @@ export function createApp() {
     res.json({ status: "code-analysis-service ok" });
   });
 
-  // -------------------------
-  // Register module routers
-  // -------------------------
   app.use("/parse", parseRouter);
   app.use("/embeddings", embedRouter);
   app.use("/graph", graphRouter);

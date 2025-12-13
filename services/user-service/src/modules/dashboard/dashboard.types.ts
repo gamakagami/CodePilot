@@ -5,8 +5,8 @@ export interface DashboardMetrics {
   repositories: {
     id: number;
     name: string;
-    lastAnalyzed: Date | null; // ✅ Added
-    failureRate: number | null; // ✅ Added
+    lastAnalyzed: Date | null;
+    failureRate: number | null;
     _count: {
       pullRequests: number;
     };
@@ -25,13 +25,13 @@ export interface DashboardMetrics {
     author: string;
     status: string;
     createdAt: Date;
-    lastAnalyzed: Date | null; // ✅ Added
+    lastAnalyzed: Date | null;
     riskScore: number | null;
     predictedFailure: boolean | null;
     actualFailure: boolean | null;
     repository: {
       name: string;
-      lastAnalyzed: Date | null; // ✅ Added
+      lastAnalyzed: Date | null;
     };
   }[];
 }

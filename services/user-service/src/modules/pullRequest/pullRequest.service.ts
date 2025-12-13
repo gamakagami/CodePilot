@@ -43,8 +43,8 @@ export const getPullRequestData = async (prId: number, userId: string) => {
     
     // Repository info
     repository: pr.repository.name,
-    repositoryLastAnalyzed: pr.repository.lastAnalyzed, // ✅ Added
-    repositoryFailureRate: pr.repository.failureRate,   // ✅ Added
+    repositoryLastAnalyzed: pr.repository.lastAnalyzed,
+    repositoryFailureRate: pr.repository.failureRate,
     
     // PR analysis
     riskScore: pr.riskScore ?? 0, 
@@ -52,7 +52,7 @@ export const getPullRequestData = async (prId: number, userId: string) => {
     actualFailure: pr.actualFailure,
     analysisSummary: pr.analysisSummary,
     analysisDuration: pr.analysisDuration,
-    lastAnalyzed: pr.lastAnalyzed, // ✅ Added PR's lastAnalyzed
+    lastAnalyzed: pr.lastAnalyzed,
     
     // Ratings
     rating: pr.rating,
@@ -64,7 +64,7 @@ export const getPullRequestData = async (prId: number, userId: string) => {
       additions: f.additions,
       deletions: f.deletions,
       diff: f.diff ?? '',
-      complexity: f.complexity ?? 0, // ✅ Added
+      complexity: f.complexity ?? 0,
     })),
     
     // Comments
@@ -75,7 +75,7 @@ export const getPullRequestData = async (prId: number, userId: string) => {
       filesChanged,
       avgComplexity,
       linesAdded,
-      linesDeleted, // ✅ Added
+      linesDeleted,
       buildDuration: pr.analysisDuration ?? 0,
     },
   };

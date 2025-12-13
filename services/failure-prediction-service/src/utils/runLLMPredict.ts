@@ -41,7 +41,7 @@ Do not include explanations, text, or extra fields.
 
 
   const response = await client.messages.create({
-      model: "claude-3-haiku-20240307", // ✅ Changed here too
+      model: "claude-3-haiku-20240307",
       max_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
     });

@@ -16,33 +16,33 @@ export class OrchestratorService {
     const startTime = Date.now();
     
     try {
-      console.log("🚀 Starting PR analysis pipeline...");
+      console.log("Starting PR analysis pipeline...");
       
       // Step 1: Analyze code
-      console.log("📊 Step 1/3: Analyzing code structure...");
+      console.log("Step 1/3: Analyzing code structure...");
       const analysisStartTime = Date.now();
       const analysisResponse = await this.callAnalysisService(request);
       const analysisDuration = Date.now() - analysisStartTime;
-      console.log(`✅ Analysis complete (${analysisDuration}ms)`);
+      console.log(`Analysis complete (${analysisDuration}ms)`);
       
       // Step 2: Predict failure
-      console.log("🎯 Step 2/3: Predicting failure probability...");
+      console.log("Step 2/3: Predicting failure probability...");
       const predictionStartTime = Date.now();
       const predictionResponse = await this.callPredictionService(
         analysisResponse.data
       );
       const predictionDuration = Date.now() - predictionStartTime;
-      console.log(`✅ Prediction complete (${predictionDuration}ms)`);
+      console.log(`Prediction complete (${predictionDuration}ms)`);
       
       // Step 3: Generate review
-      console.log("📝 Step 3/3: Generating review comments...");
+      console.log("Step 3/3: Generating review comments...");
       const reviewStartTime = Date.now();
       const reviewResponse = await this.callReviewService(
         analysisResponse.data,
         predictionResponse.data
       );
       const reviewDuration = Date.now() - reviewStartTime;
-      console.log(`✅ Review complete (${reviewDuration}ms)`);
+      console.log(`Review complete (${reviewDuration}ms)`);
       
       // Calculate total duration
       const totalDuration = Date.now() - startTime;
@@ -85,7 +85,7 @@ export class OrchestratorService {
       };
       
     } catch (error: any) {
-      console.error("❌ Pipeline error:", error.message);
+      console.error("Pipeline error:", error.message);
       
       return {
         success: false,
@@ -93,8 +93,6 @@ export class OrchestratorService {
       };
     }
   }
-  
-  // ... rest of the methods remain the same ...
   
   private async storeAnalysisResult(
     userId: string,
@@ -133,7 +131,7 @@ export class OrchestratorService {
       });
       
       await analysisResult.save();
-      console.log(`✅ Analysis result stored for user ${userId}`);
+      console.log(`Analysis result stored for user ${userId}`);
     } catch (error) {
       console.error("Failed to store analysis result:", error);
     }

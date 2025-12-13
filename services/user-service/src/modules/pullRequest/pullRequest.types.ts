@@ -8,8 +8,8 @@ export interface PullRequestDetail {
   
   // Repository info
   repository: string;
-  repositoryLastAnalyzed: Date | null; // ✅ Added
-  repositoryFailureRate: number | null; // ✅ Added
+  repositoryLastAnalyzed: Date | null;
+  repositoryFailureRate: number | null;
   
   // PR analysis
   riskScore: number;
@@ -17,7 +17,7 @@ export interface PullRequestDetail {
   actualFailure: boolean | null;
   analysisSummary: string | null;
   analysisDuration: number | null;
-  lastAnalyzed: Date | null; // ✅ Added
+  lastAnalyzed: Date | null;
   
   // Ratings
   rating: number | null;
@@ -32,7 +32,7 @@ export interface PullRequestDetail {
     additions: number;
     deletions: number;
     diff: string;
-    complexity: number; // ✅ Added
+    complexity: number;
   }[];
   
   // Comments
@@ -47,7 +47,7 @@ export interface PullRequestDetail {
     filesChanged: number;
     avgComplexity: number;
     linesAdded: number;
-    linesDeleted: number; // ✅ Added
+    linesDeleted: number;
     buildDuration: number;
   };
 }
