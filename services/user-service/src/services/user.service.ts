@@ -490,6 +490,14 @@ export const getAverageAnalysisDuration = async () => {
 
 export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
   return prisma.$transaction(async tx => {
+    // Get the PR to access repository info
+    const pr = await tx.pullRequest.findUnique({
+      where: { id: prId },
+      select: { repositoryId: true }
+    });
+
+    if (!pr) throw new Error("Pull request not found");
+
     // ✅ Update PR metadata
     const updatedPr = await tx.pullRequest.update({
       where: { id: prId },
@@ -500,6 +508,29 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
         analysisDuration: analysis.performance?.totalDuration ?? null,
         lastAnalyzed: new Date(),
         rating: analysis.rating ?? null
+      }
+    });
+
+    // ✅ Update repository's lastAnalyzed and calculate failure rate
+    const allPrs = await tx.pullRequest.findMany({
+      where: {
+        repositoryId: pr.repositoryId,
+        actualFailure: { not: null }
+      },
+      select: { actualFailure: true }
+    });
+
+    let failureRate = null;
+    if (allPrs.length > 0) {
+      const failures = allPrs.filter(p => p.actualFailure === true).length;
+      failureRate = failures / allPrs.length;
+    }
+
+    await tx.repository.update({
+      where: { id: pr.repositoryId },
+      data: {
+        lastAnalyzed: new Date(), // ✅ This was missing!
+        failureRate: failureRate ?? undefined
       }
     });
 

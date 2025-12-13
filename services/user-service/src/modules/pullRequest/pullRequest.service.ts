@@ -31,6 +31,7 @@ export const getPullRequestData = async (prId: number, userId: string) => {
   const totalComplexity = pr.changedFiles.reduce((sum, f) => sum + (f.complexity || 0), 0);
   const avgComplexity = filesChanged > 0 ? totalComplexity / filesChanged : 0;
   const linesAdded = pr.changedFiles.reduce((sum, f) => sum + f.additions, 0);
+  const linesDeleted = pr.changedFiles.reduce((sum, f) => sum + f.deletions, 0);
 
   return {
     id: pr.id,
@@ -39,52 +40,70 @@ export const getPullRequestData = async (prId: number, userId: string) => {
     author: pr.author,
     status: pr.status,
     createdAt: pr.createdAt,
+    
+    // Repository info
     repository: pr.repository.name,
+    repositoryLastAnalyzed: pr.repository.lastAnalyzed, // ✅ Added
+    repositoryFailureRate: pr.repository.failureRate,   // ✅ Added
+    
+    // PR analysis
     riskScore: pr.riskScore ?? 0, 
     predictedFailure: pr.predictedFailure,
-    actualFailure: pr.actualFailure, 
+    actualFailure: pr.actualFailure,
     analysisSummary: pr.analysisSummary,
     analysisDuration: pr.analysisDuration,
+    lastAnalyzed: pr.lastAnalyzed, // ✅ Added PR's lastAnalyzed
+    
+    // Ratings
     rating: pr.rating,
     ratingHistory: pr.ratingHistory,
+    
+    // Files
     changedFiles: pr.changedFiles.map(f => ({
       filename: f.filename,
       additions: f.additions,
       deletions: f.deletions,
       diff: f.diff ?? '',
+      complexity: f.complexity ?? 0, // ✅ Added
     })),
+    
+    // Comments
     reviewComments: pr.reviewComments,
-    featureImportance: { // 
+    
+    // Feature importance
+    featureImportance: {
       filesChanged,
       avgComplexity,
       linesAdded,
+      linesDeleted, // ✅ Added
       buildDuration: pr.analysisDuration ?? 0,
     },
   };
 };
 
-
 export const ratePullRequest = async (prId: number, rating: number) => {
-  // Add new rating to history
-  await prisma.ratingHistory.create({
-    data: {
-      pullRequestId: prId,
-      rating,
-    },
-  });
+  return await prisma.$transaction(async (tx) => {
+    // Add new rating to history
+    await tx.ratingHistory.create({
+      data: {
+        pullRequestId: prId,
+        rating,
+      },
+    });
 
-  // Calculate new average
-  const allRatings = await prisma.ratingHistory.findMany({
-    where: { pullRequestId: prId },
-    select: { rating: true },
-  });
+    // Calculate new average
+    const allRatings = await tx.ratingHistory.findMany({
+      where: { pullRequestId: prId },
+      select: { rating: true },
+    });
 
-  const avgRating =
-    allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length;
+    const avgRating =
+      allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length;
 
-  // Update PR with new average
-  return prisma.pullRequest.update({
-    where: { id: prId },
-    data: { rating: avgRating },
+    // Update PR with new average
+    return tx.pullRequest.update({
+      where: { id: prId },
+      data: { rating: avgRating },
+    });
   });
 };
