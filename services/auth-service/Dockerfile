@@ -1,52 +1,63 @@
-# Build stage
+##############################
+# 1. BUILD STAGE
+##############################
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Prevent Docker cache issues when dependencies change
+ARG CACHEBUST=1
+
+# Copy package files first (best practice for caching)
 COPY package*.json ./
 COPY package-lock.json* ./
 
-# Install dependencies
-RUN npm ci
+# Install ALL dependencies (including devDependencies)
+RUN npm ci --include=dev
 
-# Copy prisma schema
+# Copy Prisma schema
 COPY prisma ./prisma/
 
-# Generate Prisma Client
+# Generate Prisma client
 RUN npx prisma generate
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
 # Build TypeScript
 RUN npm run build
 
-# Production stage
+
+
+##############################
+# 2. PRODUCTION STAGE
+##############################
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Install wget for health checks
+# Install wget for Railway health checks (optional)
 RUN apk add --no-cache wget
 
 # Copy package files
 COPY package*.json ./
 COPY package-lock.json* ./
 
-# Install production dependencies only
+# Install ONLY production dependencies
 RUN npm ci --only=production
 
-# Copy prisma schema and generate client
+# Copy Prisma schema and generate client
 COPY prisma ./prisma/
 RUN npx prisma generate
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
+
+# Copy Prisma engine files
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Expose port
+# Expose service port
 EXPOSE 4001
 
-# Start the application
-CMD ["node", "dist/main.js"]
+# Start the service
+CMD ["node", "dist/server.js"]
