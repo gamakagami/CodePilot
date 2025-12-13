@@ -195,7 +195,7 @@ function PullRequest() {
                   disabled={submitMutation.isPending}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  {submitMutation.isPending ? "Reanalyzing..." : "Reanalyze"}
+                  {submitMutation.isPending ? "Analyzing..." : "Analyze"}
                 </Button>
                 {(() => {
                   const githubUrl = profileData?.githubUsername
