@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import {
   createProxyMiddleware,
-  HttpProxyMiddlewareOptionsWithEvents,
+  Options,
 } from "http-proxy-middleware";
 import { ClientRequest } from "http";
 
@@ -13,11 +13,11 @@ const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL!;
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL!;
 
 // AUTH SERVICE (public)
-const authProxyOptions: HttpProxyMiddlewareOptionsWithEvents = {
+const authProxyOptions: Options = {
   target: AUTH_SERVICE_URL,
   changeOrigin: true,
   pathRewrite: {
-    "^/auth": "/auth", // /api prefix is already stripped
+    "^/auth": "/auth", // /api is already stripped
   },
   logger: console,
 };
@@ -25,7 +25,7 @@ const authProxyOptions: HttpProxyMiddlewareOptionsWithEvents = {
 router.use("/auth", createProxyMiddleware(authProxyOptions));
 
 // USER SERVICE (protected)
-const userProxyOptions: HttpProxyMiddlewareOptionsWithEvents = {
+const userProxyOptions: Options = {
   target: USER_SERVICE_URL,
   changeOrigin: true,
   pathRewrite: {
