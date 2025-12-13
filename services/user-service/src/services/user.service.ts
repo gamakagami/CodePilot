@@ -4,14 +4,14 @@ import axios from "axios";
 const prisma = new PrismaClient();
 
 export const getProfile = async (userId: string) => {
-  return await prisma.userProfile.findUnique({
+  return prisma.userProfile.findUnique({
     where: { userId },
     include: {
       repositories: {
         include: {
           pullRequests: {
             orderBy: {
-              number: 'desc'
+              number: "desc"
             }
           }
         }
@@ -20,9 +20,7 @@ export const getProfile = async (userId: string) => {
   });
 };
 
-
 export const updateProfile = async (userId: string, data: any) => {
-  // Filter out undefined values
   const updateData: any = {};
   const createData: any = { userId };
 
@@ -50,12 +48,11 @@ export const updateProfile = async (userId: string, data: any) => {
   return prisma.userProfile.upsert({
     where: { userId },
     update: updateData,
-    create: createData,
+    create: createData
   });
 };
 
 export const updateApiSettings = async (userId: string, data: any) => {
-  // Filter out undefined values
   const updateData: any = {};
   const createData: any = { userId };
 
@@ -75,12 +72,11 @@ export const updateApiSettings = async (userId: string, data: any) => {
   return prisma.userProfile.upsert({
     where: { userId },
     update: updateData,
-    create: createData,
+    create: createData
   });
 };
 
 export const updateAiSettings = async (userId: string, data: any) => {
-  // Filter out undefined values
   const updateData: any = {};
   const createData: any = { userId };
 
@@ -100,7 +96,7 @@ export const updateAiSettings = async (userId: string, data: any) => {
   return prisma.userProfile.upsert({
     where: { userId },
     update: updateData,
-    create: createData,
+    create: createData
   });
 };
 
@@ -133,14 +129,12 @@ export const syncRepositories = async (userId: string) => {
   const profile = await prisma.userProfile.findUnique({ where: { userId } });
   if (!profile?.githubToken) throw new Error("GitHub token missing");
 
-  // Fetch repos from GitHub
   const reposResponse = await axios.get("https://api.github.com/user/repos", {
-  headers: {
-    Authorization: `Bearer ${profile.githubToken}`,
-    Accept: "application/vnd.github+json"
-  }
-});
-
+    headers: {
+      Authorization: `Bearer ${profile.githubToken}`,
+      Accept: "application/vnd.github+json"
+    }
+  });
 
   const repos = reposResponse.data;
 
@@ -159,7 +153,6 @@ export const syncRepositories = async (userId: string) => {
       }
     });
 
-    // Fetch PRs for each repo
     const prsResponse = await axios.get(
       `https://api.github.com/repos/${repo.owner.login}/${repo.name}/pulls`,
       {
@@ -172,20 +165,19 @@ export const syncRepositories = async (userId: string) => {
     for (const pr of prs) {
       await prisma.pullRequest.upsert({
         where: {
-  number_repositoryId: {
-    number: pr.number,
-    repositoryId: createdRepo.id
-  }
-}
-,
+          number_repositoryId: {
+            number: pr.number,
+            repositoryId: createdRepo.id
+          }
+        },
         update: {},
         create: {
-  number: pr.number,
-  title: pr.title,
-  author: pr.user.login,
-  status: pr.state,
-  repositoryId: createdRepo.id
-}
+          number: pr.number,
+          title: pr.title,
+          author: pr.user.login,
+          status: pr.state,
+          repositoryId: createdRepo.id
+        }
       });
     }
   }
@@ -201,7 +193,6 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
     throw new Error("GitHub username missing");
   }
 
-  // Fetch the repo
   const repoResponse = await axios.get(
     `https://api.github.com/repos/${profile.githubUsername}/${repoName}`,
     {
@@ -214,7 +205,6 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
 
   const repo = repoResponse.data;
 
-  // Upsert repo
   const createdRepo = await prisma.repository.upsert({
     where: {
       name_userProfileId: {
@@ -231,7 +221,6 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
     }
   });
 
-  // Fetch PRs (all states)
   const prsResponse = await axios.get(
     `https://api.github.com/repos/${repo.owner.login}/${repo.name}/pulls`,
     {
@@ -371,7 +360,6 @@ export const analyzePullRequest = async (prId: number) => {
   return updatedPr;
 };
 
-
 type OrchestratorPayload = {
   code: string;
   fileId: string;
@@ -399,9 +387,7 @@ const buildOrchestratorPayload = (
   }
 
   const combinedCode = files
-    .map((f) => {
-      return `// File: ${f.filename}\n${f.patch ?? ""}`;
-    })
+    .map((f) => `// File: ${f.filename}\n${f.patch ?? ""}`)
     .join("\n\n");
 
   return {
@@ -492,8 +478,7 @@ export const getAverageAnalysisDuration = async () => {
 };
 
 export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
-  return prisma.$transaction(async tx => {
-    // Get the PR to access repository info
+  return prisma.$transaction(async (tx) => {
     const pr = await tx.pullRequest.findUnique({
       where: { id: prId },
       select: { repositoryId: true }
@@ -521,9 +506,9 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
       select: { actualFailure: true }
     });
 
-    let failureRate = null;
+    let failureRate: number | null = null;
     if (allPrs.length > 0) {
-      const failures = allPrs.filter(p => p.actualFailure === true).length;
+      const failures = allPrs.filter((p) => p.actualFailure === true).length;
       failureRate = failures / allPrs.length;
     }
 
@@ -541,7 +526,7 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
 
     if (analysis.review?.issues?.length) {
       await tx.reviewComment.createMany({
-        data: analysis.review.issues.map(issue => ({
+        data: analysis.review.issues.map((issue: any) => ({
           file: issue.location || "global",
           line: 0,
           comment: `${issue.title}: ${issue.description}\nSuggestion: ${issue.suggestion}`,
@@ -553,6 +538,7 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
     return updatedPr;
   });
 };
+
 export const ratePullRequest = async (prId: number, rating: number) => {
   return prisma.pullRequest.update({
     where: { id: prId },
