@@ -20,12 +20,14 @@ import { useParams } from "react-router-dom";
 import {
   usePullRequestQuery,
   useRatePullRequestMutation,
+  useSubmitPullRequestMutation,
 } from "@/api/analytics";
 
 function PullRequest() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, isError } = usePullRequestQuery(id || "");
   const rateMutation = useRatePullRequestMutation();
+  const submitMutation = useSubmitPullRequestMutation();
   const [expandedFiles, setExpandedFiles] = useState<{
     [key: string]: boolean;
   }>({});
@@ -147,9 +149,14 @@ function PullRequest() {
                 </div>
               </div>
               <div className="flex space-x-2">
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => id && submitMutation.mutate({ prId: id })}
+                  disabled={submitMutation.isPending}
+                >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  Reanalyze
+                  {submitMutation.isPending ? "Reanalyzing..." : "Reanalyze"}
                 </Button>
                 <Button variant="outline" size="sm">
                   <ExternalLink className="mr-2 h-4 w-4" />

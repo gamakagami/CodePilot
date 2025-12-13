@@ -57,3 +57,22 @@ export const useRatePullRequestMutation = () => {
     },
   });
 };
+
+export const submitPullRequest = async (prId: string) => {
+  const res = await api.post(`/users/pull-requests/${prId}/submit`);
+  return res.data;
+};
+
+export const useSubmitPullRequestMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ prId }: { prId: string }) => submitPullRequest(prId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["pullRequest", variables.prId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+};
