@@ -29,7 +29,7 @@ export const useAnalyticsQuery = () =>
   });
 
 export const fetchPullRequest = async (prId: string) => {
-  const res = await api.get(`/users/users/pullRequest/${prId}`);
+  const res = await api.get(`/users/pullRequest/${prId}`);
   return res.data;
 };
 
