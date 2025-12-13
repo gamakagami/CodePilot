@@ -276,8 +276,6 @@ function PullRequest() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Right Column - AI Review */}
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -330,8 +328,6 @@ function PullRequest() {
                   ))}
                 </CardContent>
               </Card>
-
-              {/* Analysis Summary */}
               <Card>
                 <CardContent className="pt-6 space-y-4">
                   <p className="text-sm text-muted-foreground text-center">
