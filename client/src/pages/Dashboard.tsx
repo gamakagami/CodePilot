@@ -121,7 +121,7 @@ export default function Dashboard() {
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.accuracy}</div>
+              <div className="text-2xl font-bold">{stats.accuracy}%</div>
               <p className="text-xs text-muted-foreground">Accuracy</p>
             </CardContent>
           </Card>

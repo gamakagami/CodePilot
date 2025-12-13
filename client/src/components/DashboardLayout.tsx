@@ -58,12 +58,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       match: (path: string) => path === "/dashboard",
     },
     {
-      icon: GitPullRequest,
-      label: "Pull Requests",
-      href: "/pullRequests/1",
-      match: (path: string) => path.startsWith("/pullRequests"),
-    },
-    {
       icon: BarChart3,
       label: "Insights",
       href: "/insights",
