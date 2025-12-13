@@ -333,7 +333,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* System Info */}
         <Card>
           <CardHeader>
             <CardTitle>System Information</CardTitle>

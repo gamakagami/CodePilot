@@ -73,7 +73,7 @@ function SyncModal({ open, onClose }: SyncModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="min-w-[1400px] min-h-[900px]">
         <DialogHeader>
           <DialogTitle>Sync from GitHub</DialogTitle>
         </DialogHeader>
