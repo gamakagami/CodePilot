@@ -32,9 +32,7 @@ function PullRequest() {
   const [expandedFiles, setExpandedFiles] = useState<{
     [key: string]: boolean;
   }>({});
-  const [userRating, setUserRating] = useState<number | null>(
-    data?.rating || null
-  );
+  const [userRating, setUserRating] = useState<number | null>(null);
 
   const toggleFile = (fileName: string) => {
     setExpandedFiles((prev) => ({ ...prev, [fileName]: !prev[fileName] }));
@@ -62,10 +60,18 @@ function PullRequest() {
   };
 
   useEffect(() => {
-    if (data?.rating) {
-      setUserRating(data.rating);
-    }
-  }, [data?.rating]);
+    if (!data) return;
+
+    const latestRatingFromHistory =
+      data.ratingHistory && data.ratingHistory.length
+        ? data.ratingHistory[data.ratingHistory.length - 1].rating
+        : null;
+
+    const initialRating =
+      latestRatingFromHistory ?? (data.rating ? Math.round(data.rating) : null);
+
+    setUserRating(initialRating as number | null);
+  }, [data]);
 
   const prData = data
     ? {
