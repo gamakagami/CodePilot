@@ -308,7 +308,7 @@ function PullRequest() {
                   data?.actualFailure === undefined ? (
                     <div className="space-y-3">
                       <p className="text-sm text-muted-foreground">
-                        Feedback: Did this Pull Request result in a failure?
+                        What was the result of the pull request?
                       </p>
                       <div className="flex items-center gap-2">
                         <Button
@@ -334,7 +334,7 @@ function PullRequest() {
                           }}
                           disabled={feedbackMutation.isPending}
                         >
-                          Yes
+                          Failure
                         </Button>
                         <Button
                           variant="outline"
@@ -359,7 +359,7 @@ function PullRequest() {
                           }}
                           disabled={feedbackMutation.isPending}
                         >
-                          No
+                          Success
                         </Button>
                       </div>
                     </div>

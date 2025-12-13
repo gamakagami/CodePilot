@@ -158,7 +158,6 @@ export default function Settings() {
                 <p className="text-sm text-muted-foreground">
                   @{data?.githubUsername || "username"}
                 </p>
-                <Badge>Developer</Badge>
               </div>
             </div>
 
@@ -266,18 +265,6 @@ export default function Settings() {
                   Generated via OAuth authentication
                 </p>
               </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="modelEndpoint">Model Endpoint (Optional)</Label>
-                <Input
-                  id="modelEndpoint"
-                  placeholder="https://ml.codepilot.ai/predict"
-                  value={apiForm.modelEndpoint}
-                  onChange={(e) =>
-                    setApiForm({ ...apiForm, modelEndpoint: e.target.value })
-                  }
-                />
-              </div>
             </div>
 
             <Button
@@ -338,24 +325,6 @@ export default function Settings() {
                   checked={aiForm.enableLlmReview}
                   onCheckedChange={(checked) =>
                     handleAiSettingChange("enableLlmReview", checked)
-                  }
-                  disabled={updateAiSettingsMutation.isPending}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Enable ML Prediction</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Use machine learning model for test failure prediction
-                  </p>
-                </div>
-                <Switch
-                  checked={aiForm.enableMlPrediction}
-                  onCheckedChange={(checked) =>
-                    handleAiSettingChange("enableMlPrediction", checked)
                   }
                   disabled={updateAiSettingsMutation.isPending}
                 />
