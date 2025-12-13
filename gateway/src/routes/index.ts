@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import requireAuth from "../middleware/auth";
 
@@ -10,7 +10,7 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL!;
 // AUTH SERVICE (public)
 router.use(
   "/auth",
-  createProxyMiddleware<Request, Response>({
+  createProxyMiddleware({
     target: AUTH_SERVICE_URL,
     changeOrigin: true,
     pathRewrite: {
@@ -24,16 +24,15 @@ router.use(
 router.use(
   "/users",
   requireAuth,
-  createProxyMiddleware<Request, Response>({
+  createProxyMiddleware({
     target: USER_SERVICE_URL,
     changeOrigin: true,
     pathRewrite: {
       "^/api/users": "/users",
     },
 
-    // Fixed: callbacks are now under 'on' object
     on: {
-      proxyReq: (proxyReq, req) => {
+      proxyReq: (proxyReq, req, res) => {
         console.log("→ USER SERVICE");
         console.log("URL:", req.originalUrl);
         console.log("Method:", req.method);
@@ -46,7 +45,7 @@ router.use(
         }
       },
 
-      proxyRes: (proxyRes) => {
+      proxyRes: (proxyRes, req, res) => {
         console.log(
           "← USER SERVICE RESPONSE:",
           proxyRes.statusCode
