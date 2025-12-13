@@ -52,7 +52,7 @@ model Repository {
 
 model PullRequest {
   id              Int       @id @default(autoincrement())
-  number          Int
+  number          Int       // GitHub PR number (e.g., 2 for PR #2)
   title           String
   author          String
   status          String
@@ -75,7 +75,9 @@ model PullRequest {
   changedFiles     ChangedFile[] 
   reviewComments   ReviewComment[]
 
+  // Unique constraint ensures each PR number is unique within a repository
   @@unique([number, repositoryId])
+  @@index([repositoryId])
 }
 
 model RatingHistory {
@@ -96,7 +98,9 @@ model ChangedFile {
   complexity     Float?
   diff           String?
   pullRequestId  Int
-  pullRequest    PullRequest @relation(fields: [pullRequestId], references: [id])
+  pullRequest    PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  
+  @@index([pullRequestId])
 }
 
 model ReviewComment {
@@ -105,5 +109,7 @@ model ReviewComment {
   line           Int
   comment        String
   pullRequestId  Int
-  pullRequest    PullRequest @relation(fields: [pullRequestId], references: [id])
+  pullRequest    PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  
+  @@index([pullRequestId])
 }

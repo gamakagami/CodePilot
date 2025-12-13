@@ -4,12 +4,16 @@ import axios from "axios";
 const prisma = new PrismaClient();
 
 export const getProfile = async (userId: string) => {
-  return prisma.userProfile.findUnique({
+  return await prisma.userProfile.findUnique({
     where: { userId },
     include: {
       repositories: {
         include: {
-          pullRequests: true
+          pullRequests: {
+            orderBy: {
+              number: 'desc' // Order by PR number descending
+            }
+          }
         }
       }
     }
@@ -194,8 +198,9 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
   if (!profile?.githubToken) throw new Error("GitHub token missing");
 
   if (!profile.githubUsername) {
-  throw new Error("GitHub username missing");
-}
+    throw new Error("GitHub username missing");
+  }
+
   // Fetch the repo
   const repoResponse = await axios.get(
     `https://api.github.com/repos/${profile.githubUsername}/${repoName}`,
@@ -217,17 +222,23 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
         userProfileId: profile.id
       }
     },
-    update: {},
+    update: {
+      lastAnalyzed: new Date()
+    },
     create: {
       name: repo.name,
       userProfileId: profile.id
     }
   });
 
-  // Fetch PRs
+  // Fetch PRs (all states)
   const prsResponse = await axios.get(
     `https://api.github.com/repos/${repo.owner.login}/${repo.name}/pulls`,
     {
+      params: {
+        state: "all", // Get open, closed, and merged PRs
+        per_page: 100
+      },
       headers: {
         Authorization: `Bearer ${profile.githubToken}`,
         Accept: "application/vnd.github+json"
@@ -240,20 +251,25 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
   for (const pr of prs) {
     await prisma.pullRequest.upsert({
       where: {
-  number_repositoryId: {
-    number: pr.number,
-    repositoryId: createdRepo.id
-  }
-}
-,
-      update: {},
+        number_repositoryId: {
+          number: pr.number, // GitHub PR number (e.g., 2 for PR #2)
+          repositoryId: createdRepo.id
+        }
+      },
+      update: {
+        title: pr.title,
+        author: pr.user.login,
+        status: pr.state,
+        repoName: repo.name
+      },
       create: {
-  number: pr.number, // ✅ store GitHub PR number
-  title: pr.title,
-  author: pr.user.login,
-  status: pr.state,
-  repositoryId: createdRepo.id
-}
+        number: pr.number, // Store GitHub PR number
+        title: pr.title,
+        author: pr.user.login,
+        status: pr.state,
+        repositoryId: createdRepo.id,
+        repoName: repo.name
+      }
     });
   }
 
