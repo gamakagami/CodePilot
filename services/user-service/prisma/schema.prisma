@@ -59,7 +59,8 @@ model PullRequest {
   createdAt       DateTime  @default(now())
   repositoryId    Int
   repository      Repository @relation(fields: [repositoryId], references: [id])
-
+  repoName        String?
+  
   analysisSummary     String?
   riskScore           Float?
   llmReview           String?

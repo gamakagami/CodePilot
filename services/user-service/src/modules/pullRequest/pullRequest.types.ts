@@ -1,13 +1,14 @@
 export interface PullRequestDetail {
   id: number;
+  number: number; //
   title: string;
-  repository: string;
+  repository: string; // 
   author: string;
   createdAt: Date;
   status: string;
   riskScore: number;
   predictedFailure: boolean | null;
-  actualFailure: boolean | null;
+  actualFailure: boolean | null; // 
   featureImportance: {
     filesChanged: number;
     avgComplexity: number;
@@ -27,9 +28,9 @@ export interface PullRequestDetail {
   }[];
   analysisSummary: string | null;
   analysisDuration: number | null;
-  rating: number | null; // Current average
+  rating: number | null;
   ratingHistory: {
     rating: number;
     createdAt: Date;
-  }[]; // For the chart
+  }[];
 }
