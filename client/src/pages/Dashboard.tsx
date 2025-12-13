@@ -93,7 +93,7 @@ export default function Dashboard() {
       <div className="space-y-8">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, {profileData.name} 👋
+            Welcome back, {profileData?.name || "Hello"} 👋
           </h1>
           <p className="text-muted-foreground">
             Here's what's happening in your repositories.
