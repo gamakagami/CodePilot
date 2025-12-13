@@ -60,4 +60,4 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 4001
 
 # Start the service
-CMD ["node", "dist/server.js"]
+CMD ["node", "dist/main.js"]
