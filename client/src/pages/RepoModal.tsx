@@ -50,7 +50,7 @@ export default function RepoModal({ open, onClose, repo }: RepoModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="min-w-[1000px] min-h-[300px]">
         <DialogHeader>
           <DialogTitle>Repository: {repo.name}</DialogTitle>
         </DialogHeader>

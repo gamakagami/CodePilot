@@ -13,10 +13,12 @@ import {
   ThumbsDown,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Progress } from "@/components/ui/progress";
 import { useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   usePullRequestQuery,
   useRatePullRequestMutation,
@@ -41,6 +43,7 @@ function PullRequest() {
   };
 
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleRating = async (rating: number) => {
     setUserRating(rating);
@@ -156,9 +159,19 @@ function PullRequest() {
           <div className="space-y-4">
             <div className="flex items-start justify-between">
               <div className="space-y-1 flex-1">
-                <h1 className="text-2xl font-bold text-foreground">
-                  {prData.title}
-                </h1>
+                <div className="flex items-center space-x-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => navigate(-1)}
+                    className="p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <h1 className="text-2xl font-bold text-foreground">
+                    {prData.title}
+                  </h1>
+                </div>
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
                   <span>#{prData.number}</span>
                   <span>•</span>
