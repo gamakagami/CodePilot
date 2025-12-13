@@ -169,7 +169,7 @@ function PullRequest() {
                     variant="ghost"
                     size="sm"
                     onClick={() => navigate(-1)}
-                    className="p-0 hover:bg-white active:bg-white focus:ring-0"
+                    className="p-0 hover:bg-transparent active:bg-transparent focus:ring-0"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
