@@ -1,10 +1,9 @@
+import { Router, Request, Response } from "express";
 import {
   createProxyMiddleware,
   Options,
 } from "http-proxy-middleware";
-import { Request, Response } from "express";
 import { ClientRequest } from "http";
-
 
 import requireAuth from "../middleware/auth";
 
@@ -14,7 +13,7 @@ const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL!;
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL!;
 
 // AUTH SERVICE (public)
-const authProxyOptions: Options = {
+const authProxyOptions: Options<Request, Response> = {
   target: AUTH_SERVICE_URL,
   changeOrigin: true,
   pathRewrite: {
@@ -65,7 +64,6 @@ const userProxyOptions: Options<Request, Response> = {
     }
   },
 };
-
 
 router.use("/users", requireAuth, createProxyMiddleware(userProxyOptions));
 
