@@ -31,31 +31,36 @@ router.use(
       "^/api/users": "/users",
     },
 
-    onProxyReq(proxyReq, req) {
-      console.log("→ USER SERVICE");
-      console.log("URL:", req.originalUrl);
-      console.log("Method:", req.method);
+    // Fixed: callbacks are now under 'on' object
+    on: {
+      proxyReq: (proxyReq, req) => {
+        console.log("→ USER SERVICE");
+        console.log("URL:", req.originalUrl);
+        console.log("Method:", req.method);
 
-      if (req.headers.authorization) {
-        proxyReq.setHeader(
-          "authorization",
-          req.headers.authorization
+        if (req.headers.authorization) {
+          proxyReq.setHeader(
+            "authorization",
+            req.headers.authorization
+          );
+        }
+      },
+
+      proxyRes: (proxyRes) => {
+        console.log(
+          "← USER SERVICE RESPONSE:",
+          proxyRes.statusCode
         );
-      }
-    },
+      },
 
-    onProxyRes(proxyRes) {
-      console.log(
-        "← USER SERVICE RESPONSE:",
-        proxyRes.statusCode
-      );
-    },
-
-    onError(err, req, res) {
-      console.error("USER PROXY ERROR:", err.message);
-      res.status(502).json({
-        error: "Gateway → User service error",
-      });
+      error: (err, req, res) => {
+        console.error("USER PROXY ERROR:", err.message);
+        if (res && !res.headersSent) {
+          res.status(502).json({
+            error: "Gateway → User service error",
+          });
+        }
+      },
     },
   })
 );
