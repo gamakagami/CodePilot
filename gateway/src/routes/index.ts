@@ -1,9 +1,10 @@
-import { Router, Request, Response } from "express";
 import {
   createProxyMiddleware,
   Options,
 } from "http-proxy-middleware";
+import { Request, Response } from "express";
 import { ClientRequest } from "http";
+
 
 import requireAuth from "../middleware/auth";
 
@@ -25,7 +26,7 @@ const authProxyOptions: Options = {
 router.use("/auth", createProxyMiddleware(authProxyOptions));
 
 // USER SERVICE (protected)
-const userProxyOptions: Options = {
+const userProxyOptions: Options<Request, Response> = {
   target: USER_SERVICE_URL,
   changeOrigin: true,
   pathRewrite: {
@@ -64,6 +65,7 @@ const userProxyOptions: Options = {
     }
   },
 };
+
 
 router.use("/users", requireAuth, createProxyMiddleware(userProxyOptions));
 
