@@ -5,16 +5,9 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY package-lock.json* ./
 
 # Install dependencies
 RUN npm ci
-
-# Copy prisma schema
-COPY prisma ./prisma/
-
-# Generate Prisma Client
-RUN npx prisma generate
 
 # Copy source code
 COPY . .
@@ -32,21 +25,16 @@ RUN apk add --no-cache wget
 
 # Copy package files
 COPY package*.json ./
-COPY package-lock.json* ./
 
 # Install production dependencies only
 RUN npm ci --only=production
 
-# Copy prisma schema and generate client
-COPY prisma ./prisma/
-RUN npx prisma generate
-
-# Copy built application from builder
+# Copy built files from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Expose port
-EXPOSE 4001
+EXPOSE 4000
 
 # Start the application
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/index.js"]
+

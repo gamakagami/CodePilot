@@ -42,8 +42,8 @@ RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Copy Python ML model files
-COPY src/model ./src/model/
+# Create model directory (will be mounted as volume in docker-compose)
+RUN mkdir -p ./src/model
 
 # Install Python dependencies
 RUN pip install --no-cache-dir \

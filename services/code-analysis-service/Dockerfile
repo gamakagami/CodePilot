@@ -23,8 +23,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies for native modules
-RUN apk add --no-cache python3 make g++
+# Install runtime dependencies for native modules and wget for health checks
+RUN apk add --no-cache python3 make g++ wget
 
 # Copy package files
 COPY package*.json ./

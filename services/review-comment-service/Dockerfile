@@ -20,6 +20,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install wget for health checks
+RUN apk add --no-cache wget
+
 # Copy package files
 COPY package*.json ./
 
@@ -32,5 +35,5 @@ COPY --from=builder /app/dist ./dist
 # Expose port
 EXPOSE 6000
 
-# Start the application - main.ts compiles to main.js
-CMD ["node", "dist/main.js"]
+# Start the application
+CMD ["node", "dist/index.js"]
