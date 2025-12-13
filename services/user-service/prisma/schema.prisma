@@ -27,8 +27,8 @@ model UserProfile {
 
   // Prediction / AI Settings
   riskThreshold       Float?    @default(0.5)
-  enableLlmReview     Boolean   @default(false)
-  enableMlPrediction  Boolean   @default(false)
+  enableLlmReview     Boolean   @default(true)
+  enableMlPrediction  Boolean   @default(true)
 
   // Timestamps
   createdAt       DateTime      @default(now())
