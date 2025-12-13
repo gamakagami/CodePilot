@@ -199,7 +199,7 @@ function PullRequest() {
                 </Button>
                 {(() => {
                   const githubUrl = profileData?.githubUsername
-                    ? `https://github.com/${profileData.githubUsername}/${data.repository}/${data?.id}`
+                    ? `https://github.com/${data.author}/${data.repository}/pull/${data?.id}`
                     : undefined;
 
                   return (
