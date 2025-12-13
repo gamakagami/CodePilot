@@ -115,9 +115,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">Developer</p>
+                      <p className="text-sm font-medium">
+                        {data?.name || "Failed to fetch data"}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        dev@example.com
+                        {`@${data?.githubUsername}` || "Failed to fetch data"}
                       </p>
                     </div>
                   </DropdownMenuLabel>
