@@ -21,12 +21,13 @@ import { Link } from "react-router-dom";
 import { useDashboardQuery } from "@/api/dashboard";
 import SyncModal from "./SyncModal";
 import RepoModal from "./RepoModal";
+import { useFetchProfile } from "@/api/setting";
 
 export default function Dashboard() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const { data, isLoading, isError } = useDashboardQuery();
-
+  const { data: profileData } = useFetchProfile();
   const REPOS_PER_PAGE = 5;
 
   const stats = {
@@ -92,7 +93,7 @@ export default function Dashboard() {
       <div className="space-y-8">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-foreground">
-            Welcome back, Developer 👋
+            Welcome back, {profileData.name} 👋
           </h1>
           <p className="text-muted-foreground">
             Here's what's happening in your repositories.

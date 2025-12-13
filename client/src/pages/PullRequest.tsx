@@ -26,6 +26,7 @@ import {
   useSubmitFeedbackMutation,
 } from "@/api/analytics";
 import { useToast } from "@/components/ui/use-toast";
+import { useFetchProfile } from "@/api/setting";
 
 function PullRequest() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +38,7 @@ function PullRequest() {
     [key: string]: boolean;
   }>({});
   const [userRating, setUserRating] = useState<number | null>(null);
+  const { data: profileData } = useFetchProfile();
 
   const toggleFile = (fileName: string) => {
     setExpandedFiles((prev) => ({ ...prev, [fileName]: !prev[fileName] }));
@@ -46,8 +48,11 @@ function PullRequest() {
   const navigate = useNavigate();
 
   const handleRating = async (rating: number) => {
-    setUserRating(rating);
     if (!id) return;
+    if (!data?.analysisDuration) return;
+    if (data?.rating != null) return;
+
+    setUserRating(rating);
 
     try {
       await rateMutation.mutateAsync({ prId: id, rating });
@@ -164,7 +169,7 @@ function PullRequest() {
                     variant="ghost"
                     size="sm"
                     onClick={() => navigate(-1)}
-                    className="p-0"
+                    className="p-0 hover:bg-transparent active:bg-transparent focus:ring-0"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
@@ -194,10 +199,36 @@ function PullRequest() {
                   <RefreshCw className="mr-2 h-4 w-4" />
                   {submitMutation.isPending ? "Reanalyzing..." : "Reanalyze"}
                 </Button>
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View on GitHub
-                </Button>
+                {(() => {
+                  const githubUrl = profileData?.githubUsername
+                    ? `https://github.com/${profileData.githubUsername}/${data.repository}/${data?.id}`
+                    : undefined;
+
+                  return (
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      disabled={!githubUrl}
+                    >
+                      {githubUrl ? (
+                        <a
+                          href={githubUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View on GitHub
+                        </a>
+                      ) : (
+                        <>
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          View on GitHub
+                        </>
+                      )}
+                    </Button>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -456,27 +487,44 @@ function PullRequest() {
 
                   <Separator />
 
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-foreground text-center">
-                      Rate this analysis
-                    </p>
-                    <div className="flex justify-center gap-2">
-                      {[1, 2, 3, 4, 5].map((rating) => (
-                        <Button
-                          key={rating}
-                          variant={
-                            userRating === rating ? "default" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => handleRating(rating)}
-                          disabled={rateMutation.isPending}
-                          className="w-10 h-10 p-0"
-                        >
-                          ⭐
-                        </Button>
-                      ))}
+                  {data?.rating != null ? (
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Rating</p>
+                      <p className="text-foreground font-semibold">
+                        {Number(data.rating).toFixed(1)} / 5
+                      </p>
                     </div>
-                  </div>
+                  ) : data?.analysisDuration == null ? (
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">
+                        Analysis not available yet — rating disabled
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-foreground text-center">
+                        Rate this analysis
+                      </p>
+                      <div className="flex justify-center gap-2">
+                        {[1, 2, 3, 4, 5].map((rating) => (
+                          <Button
+                            key={rating}
+                            variant={
+                              userRating === rating ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => handleRating(rating)}
+                            disabled={
+                              rateMutation.isPending || !data?.analysisDuration
+                            }
+                            className="w-10 h-10 p-0"
+                          >
+                            ⭐
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

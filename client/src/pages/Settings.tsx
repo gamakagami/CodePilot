@@ -278,61 +278,6 @@ export default function Settings() {
           </CardContent>
         </Card>
 
-        {/* Prediction & Review Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Prediction & Review Settings</CardTitle>
-            <CardDescription>
-              Configure AI model behavior and thresholds
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="riskThreshold">Risk Threshold</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {(aiForm.riskThreshold / 100).toFixed(2)}
-                  </span>
-                </div>
-                <Slider
-                  id="riskThreshold"
-                  value={[aiForm.riskThreshold]}
-                  onValueChange={(value) =>
-                    handleAiSettingChange("riskThreshold", value[0])
-                  }
-                  max={100}
-                  step={5}
-                  className="w-full"
-                  disabled={updateAiSettingsMutation.isPending}
-                />
-                <p className="text-xs text-muted-foreground">
-                  PRs with failure probability above this threshold will be
-                  flagged as high risk
-                </p>
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Enable LLM Review</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Use Claude AI for automated code review comments
-                  </p>
-                </div>
-                <Switch
-                  checked={aiForm.enableLlmReview}
-                  onCheckedChange={(checked) =>
-                    handleAiSettingChange("enableLlmReview", checked)
-                  }
-                  disabled={updateAiSettingsMutation.isPending}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader>
             <CardTitle>System Information</CardTitle>
@@ -366,10 +311,7 @@ export default function Settings() {
                 </p>
               </div>
             </div>
-
-            <Separator />
-
-            <Button variant="outline">Retrain Model</Button>
+            <Separator />{" "}
           </CardContent>
         </Card>
       </div>
