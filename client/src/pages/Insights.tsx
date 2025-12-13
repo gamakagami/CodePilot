@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useAnalyticsQuery } from "@/api/analytics";
 import { useState } from "react";
-import { Button } from "react-day-picker";
+import { Button } from "@/components/ui/button";
 
 export default function Insights() {
   const { data, isLoading, isError } = useAnalyticsQuery();
