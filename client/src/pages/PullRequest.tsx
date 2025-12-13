@@ -22,6 +22,7 @@ import {
   useRatePullRequestMutation,
   useSubmitPullRequestMutation,
 } from "@/api/analytics";
+import { useToast } from "@/components/ui/use-toast";
 
 function PullRequest() {
   const { id } = useParams<{ id: string }>();
@@ -39,10 +40,24 @@ function PullRequest() {
     setExpandedFiles((prev) => ({ ...prev, [fileName]: !prev[fileName] }));
   };
 
-  const handleRating = (rating: number) => {
+  const { toast } = useToast();
+
+  const handleRating = async (rating: number) => {
     setUserRating(rating);
-    if (id) {
-      rateMutation.mutate({ prId: id, rating });
+    if (!id) return;
+
+    try {
+      await rateMutation.mutateAsync({ prId: id, rating });
+      toast({
+        title: "Thanks",
+        description: "Your rating was submitted successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit rating. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 

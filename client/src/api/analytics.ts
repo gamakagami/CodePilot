@@ -40,7 +40,7 @@ export const usePullRequestQuery = (prId: string) =>
   });
 
 export const ratePullRequest = async (prId: string, rating: number) => {
-  const res = await api.post(`/users/users/pullRequest/${prId}/rate`, {
+  const res = await api.post(`/users/pullRequest/${prId}/rate`, {
     rating,
   });
   return res.data;
