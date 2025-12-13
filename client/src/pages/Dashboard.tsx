@@ -20,6 +20,7 @@ import {
 import { Link } from "react-router-dom";
 import { useDashboardQuery } from "@/api/dashboard";
 import SyncModal from "./SyncModal";
+import RepoModal from "./RepoModal";
 
 export default function Dashboard() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -50,6 +51,9 @@ export default function Dashboard() {
     openPRs: repo._count?.pullRequests ?? 0,
     failureRate: repo.failureRate ?? 0,
   }));
+
+  const [selectedRepo, setSelectedRepo] = useState<any | null>(null);
+  const [isRepoModalOpen, setIsRepoModalOpen] = useState(false);
 
   // Pagination logic
   const totalRepos = repositories.length;
@@ -175,9 +179,17 @@ export default function Dashboard() {
               <>
                 <div className="space-y-4">
                   {currentRepos.map((repo) => (
-                    <div
+                    <button
                       key={repo.id}
-                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        const full =
+                          data?.repositories?.find(
+                            (r: any) => r.id === repo.id
+                          ) ?? null;
+                        setSelectedRepo(full);
+                        setIsRepoModalOpen(true);
+                      }}
+                      className="w-full text-left flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
                     >
                       <div className="space-y-1">
                         <h3 className="font-semibold text-foreground">
@@ -201,7 +213,7 @@ export default function Dashboard() {
                           <p className="text-muted-foreground">Failure rate</p>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
@@ -350,6 +362,11 @@ export default function Dashboard() {
       <SyncModal
         open={isSyncModalOpen}
         onClose={() => setIsSyncModalOpen(false)}
+      />
+      <RepoModal
+        open={isRepoModalOpen}
+        onClose={() => setIsRepoModalOpen(false)}
+        repo={selectedRepo}
       />
     </DashboardLayout>
   );
