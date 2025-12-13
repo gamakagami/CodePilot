@@ -165,14 +165,12 @@ function PullRequest() {
             <div className="flex items-start justify-between">
               <div className="space-y-1 flex-1">
                 <div className="flex items-center space-x-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
                     onClick={() => navigate(-1)}
-                    className="p-0 focus:ring-0"
+                    className="p-0 hover:opacity-70 transition-opacity"
                   >
                     <ChevronLeft className="h-4 w-4" />
-                  </Button>
+                  </button>
                   <h1 className="text-2xl font-bold text-foreground">
                     {prData.title}
                   </h1>
