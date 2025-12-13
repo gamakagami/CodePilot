@@ -24,6 +24,8 @@ import { useState } from "react";
 export default function Insights() {
   const { data, isLoading, isError } = useAnalyticsQuery();
   const [timeFilter, setTimeFilter] = useState<"week" | "month">("week");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
 
   const getFilteredFeedback = () => {
     const now = new Date("2025-12-12");
@@ -286,25 +288,129 @@ export default function Insights() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.repositoryComparison.map((repo) => (
-                    <tr
-                      key={repo.name}
-                      className="border-b border-border last:border-0"
-                    >
-                      <td className="py-3 px-4 font-medium text-foreground">
-                        {repo.name}
-                      </td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">
-                        {repo.prsAnalyzed}
-                      </td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">
-                        {repo.avgFailureRate}%
-                      </td>
-                      <td className="py-3 px-4 text-right text-muted-foreground">
-                        {repo.avgLatency}s
-                      </td>
-                    </tr>
-                  ))}
+                  {(() => {
+                    const list = data.repositoryComparison || [];
+                    const total = list.length;
+                    const totalPages = Math.max(
+                      1,
+                      Math.ceil(total / ITEMS_PER_PAGE)
+                    );
+                    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+                    const endIndex = startIndex + ITEMS_PER_PAGE;
+                    const pageItems = list.slice(startIndex, endIndex);
+
+                    return (
+                      <>
+                        {pageItems.map((repo) => (
+                          <tr
+                            key={repo.name}
+                            className="border-b border-border last:border-0"
+                          >
+                            <td className="py-3 px-4 font-medium text-foreground">
+                              {repo.name}
+                            </td>
+                            <td className="py-3 px-4 text-right text-muted-foreground">
+                              {repo.prsAnalyzed}
+                            </td>
+                            <td className="py-3 px-4 text-right text-muted-foreground">
+                              {repo.avgFailureRate}%
+                            </td>
+                            <td className="py-3 px-4 text-right text-muted-foreground">
+                              {repo.avgLatency}s
+                            </td>
+                          </tr>
+                        ))}
+                        {totalPages > 1 && (
+                          <tr>
+                            <td colSpan={4} className="py-4 px-4">
+                              <div className="flex items-center justify-between">
+                                <div className="text-sm text-muted-foreground">
+                                  Showing {startIndex + 1}-
+                                  {Math.min(endIndex, total)} of {total}{" "}
+                                  repositories
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setCurrentPage((p) => Math.max(p - 1, 1))
+                                    }
+                                    disabled={currentPage === 1}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <ChevronLeft className="h-4 w-4" />
+                                  </Button>
+
+                                  <div className="flex items-center space-x-1">
+                                    {Array.from(
+                                      { length: totalPages },
+                                      (_, i) => i + 1
+                                    ).map((page) => {
+                                      const showPage =
+                                        page === 1 ||
+                                        page === totalPages ||
+                                        (page >= currentPage - 1 &&
+                                          page <= currentPage + 1);
+
+                                      const showEllipsis =
+                                        (page === currentPage - 2 &&
+                                          currentPage > 3) ||
+                                        (page === currentPage + 2 &&
+                                          currentPage < totalPages - 2);
+
+                                      if (showEllipsis) {
+                                        return (
+                                          <span
+                                            key={page}
+                                            className="px-2 text-muted-foreground"
+                                          >
+                                            ...
+                                          </span>
+                                        );
+                                      }
+
+                                      if (!showPage) return null;
+
+                                      return (
+                                        <Button
+                                          key={page}
+                                          variant={
+                                            currentPage === page
+                                              ? "default"
+                                              : "outline"
+                                          }
+                                          size="sm"
+                                          onClick={() => setCurrentPage(page)}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          {page}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      setCurrentPage((p) =>
+                                        Math.min(p + 1, totalPages)
+                                      )
+                                    }
+                                    disabled={currentPage === totalPages}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
