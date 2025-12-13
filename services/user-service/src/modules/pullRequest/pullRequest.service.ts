@@ -3,7 +3,7 @@ import { prisma } from "../../prisma";
 export const getPullRequestData = async (prId: number, userId: string) => {
   const profile = await prisma.userProfile.findUnique({
     where: { userId },
-    select: { id: true }
+    select: { id: true },
   });
 
   const pr = await prisma.pullRequest.findUnique({
@@ -13,13 +13,13 @@ export const getPullRequestData = async (prId: number, userId: string) => {
       changedFiles: true,
       reviewComments: true,
       ratingHistory: {
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: "asc" },
         select: {
           rating: true,
-          createdAt: true
-        }
-      }
-    }
+          createdAt: true,
+        },
+      },
+    },
   });
 
   if (!pr || pr.repository.userProfileId !== profile.id) {
@@ -35,12 +35,13 @@ export const getPullRequestData = async (prId: number, userId: string) => {
     createdAt: pr.createdAt,
     riskScore: pr.riskScore,
     predictedFailure: pr.predictedFailure,
+    actualFailure: pr.actualFailure,
     analysisSummary: pr.analysisSummary,
     analysisDuration: pr.analysisDuration,
     rating: pr.rating, // Overall average
     ratingHistory: pr.ratingHistory, // Array for chart
     changedFiles: pr.changedFiles,
-    reviewComments: pr.reviewComments
+    reviewComments: pr.reviewComments,
   };
 };
 
@@ -49,22 +50,22 @@ export const ratePullRequest = async (prId: number, rating: number) => {
   await prisma.ratingHistory.create({
     data: {
       pullRequestId: prId,
-      rating
-    }
+      rating,
+    },
   });
 
   // Calculate new average
   const allRatings = await prisma.ratingHistory.findMany({
     where: { pullRequestId: prId },
-    select: { rating: true }
+    select: { rating: true },
   });
 
-  const avgRating = allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length;
+  const avgRating =
+    allRatings.reduce((sum, r) => sum + r.rating, 0) / allRatings.length;
 
   // Update PR with new average
   return prisma.pullRequest.update({
     where: { id: prId },
-    data: { rating: avgRating }
+    data: { rating: avgRating },
   });
 };
-

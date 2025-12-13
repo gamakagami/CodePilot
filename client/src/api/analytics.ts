@@ -28,17 +28,6 @@ export const useAnalyticsQuery = () =>
     queryFn: fetchAnalytics,
   });
 
-export const fetchPullRequest = async (prId: string) => {
-  const res = await api.get(`/users/pullRequest/${prId}`);
-  return res.data;
-};
-
-export const usePullRequestQuery = (prId: string) =>
-  useQuery({
-    queryKey: ["pullRequest", prId],
-    queryFn: () => fetchPullRequest(prId),
-  });
-
 export const ratePullRequest = async (prId: string, rating: number) => {
   const res = await api.post(`/users/pullRequest/${prId}/rate`, {
     rating,
@@ -78,3 +67,40 @@ export const useSubmitPullRequestMutation = () => {
     },
   });
 };
+
+export const submitFeedback = async (prId: string, actualFailure: boolean) => {
+  const res = await api.post(`/users/users/pull-requests/${prId}/feedback`, {
+    actualFailure,
+  });
+  return res.data;
+};
+
+export const useSubmitFeedbackMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      prId,
+      actualFailure,
+    }: {
+      prId: string;
+      actualFailure: boolean;
+    }) => submitFeedback(prId, actualFailure),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["pullRequest", variables.prId],
+      });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+};
+export const fetchPullRequest = async (prId: string) => {
+  const res = await api.get(`/users/pullRequest/${prId}`);
+  return res.data;
+};
+
+export const usePullRequestQuery = (prId: string) =>
+  useQuery({
+    queryKey: ["pullRequest", prId],
+    queryFn: () => fetchPullRequest(prId),
+  });

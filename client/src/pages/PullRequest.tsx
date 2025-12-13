@@ -21,6 +21,7 @@ import {
   usePullRequestQuery,
   useRatePullRequestMutation,
   useSubmitPullRequestMutation,
+  useSubmitFeedbackMutation,
 } from "@/api/analytics";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -29,6 +30,7 @@ function PullRequest() {
   const { data, isLoading, isError } = usePullRequestQuery(id || "");
   const rateMutation = useRatePullRequestMutation();
   const submitMutation = useSubmitPullRequestMutation();
+  const feedbackMutation = useSubmitFeedbackMutation();
   const [expandedFiles, setExpandedFiles] = useState<{
     [key: string]: boolean;
   }>({});
@@ -294,6 +296,83 @@ function PullRequest() {
                       )}
                     </div>
                   ))}
+                </CardContent>
+              </Card>
+              {/* Feedback box - only show when actualFailure is not yet set */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Feedback</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data?.actualFailure === null ||
+                  data?.actualFailure === undefined ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Feedback: Did this Pull Request result in a failure?
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="destructive"
+                          onClick={async () => {
+                            if (!id) return;
+                            try {
+                              await feedbackMutation.mutateAsync({
+                                prId: id,
+                                actualFailure: true,
+                              });
+                              toast({
+                                title: "Thanks",
+                                description: "Feedback submitted.",
+                              });
+                            } catch (err) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to submit feedback.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          disabled={feedbackMutation.isPending}
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={async () => {
+                            if (!id) return;
+                            try {
+                              await feedbackMutation.mutateAsync({
+                                prId: id,
+                                actualFailure: false,
+                              });
+                              toast({
+                                title: "Thanks",
+                                description: "Feedback submitted.",
+                              });
+                            } catch (err) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to submit feedback.",
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          disabled={feedbackMutation.isPending}
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Feedback: </span>
+                      <span className="font-medium">
+                        {data?.actualFailure
+                          ? "Yes — resulted in failure"
+                          : "No — did not result in failure"}
+                      </span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
