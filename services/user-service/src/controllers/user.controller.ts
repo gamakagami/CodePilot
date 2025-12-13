@@ -74,14 +74,16 @@ export const syncRepositories = async (req: any, res: Response) => {
 export const syncSingleRepository = async (req: any, res: Response) => {
   try {
     const userId = req.user.id;
-
     const repoName = req.params.repoName;
 
     const result = await userService.syncSingleRepository(userId, repoName);
     return res.json(result);
   } catch (err: any) {
     console.error(err.response?.data || err);
-    return res.status(500).json({ error: "Failed to sync repository" });
+    return res.status(500).json({ 
+      error: "Failed to sync repository",
+      message: err.message 
+    });
   }
 };
 
