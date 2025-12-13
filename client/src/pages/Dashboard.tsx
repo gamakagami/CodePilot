@@ -9,14 +9,24 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { RefreshCw, GitPullRequest, CheckCircle, Clock } from "lucide-react";
+import {
+  RefreshCw,
+  GitPullRequest,
+  CheckCircle,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDashboardQuery } from "@/api/dashboard";
 import SyncModal from "./SyncModal";
 
 export default function Dashboard() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const { data, isLoading, isError } = useDashboardQuery();
+
+  const REPOS_PER_PAGE = 5;
 
   const stats = {
     avgLatency: data?.avgAnalysisDuration
@@ -40,6 +50,25 @@ export default function Dashboard() {
     openPRs: repo._count?.pullRequests ?? 0,
     failureRate: repo.failureRate ?? 0,
   }));
+
+  // Pagination logic
+  const totalRepos = repositories.length;
+  const totalPages = Math.ceil(totalRepos / REPOS_PER_PAGE);
+  const startIndex = (currentPage - 1) * REPOS_PER_PAGE;
+  const endIndex = startIndex + REPOS_PER_PAGE;
+  const currentRepos = repositories.slice(startIndex, endIndex);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  };
+
+  const handlePageClick = (page) => {
+    setCurrentPage(page);
+  };
 
   // Safely extract recent PRs with proper mapping
   const recentPRs = (data?.recentPullRequests ?? []).map((pr) => ({
@@ -143,37 +172,115 @@ export default function Dashboard() {
               </p>
             )}
             {!isLoading && !isError && repositories.length > 0 && (
-              <div className="space-y-4">
-                {repositories.map((repo) => (
-                  <div
-                    key={repo.id}
-                    className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="space-y-1">
-                      <h3 className="font-semibold text-foreground">
-                        {repo.name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Last analyzed: {repo.lastAnalyzed}
-                      </p>
+              <>
+                <div className="space-y-4">
+                  {currentRepos.map((repo) => (
+                    <div
+                      key={repo.id}
+                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <h3 className="font-semibold text-foreground">
+                          {repo.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Last analyzed: {repo.lastAnalyzed}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-6 text-sm">
+                        <div className="text-right">
+                          <p className="font-medium text-foreground">
+                            {repo.openPRs}
+                          </p>
+                          <p className="text-muted-foreground">Open PRs</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-foreground">
+                            {repo.failureRate.toFixed(0)}%
+                          </p>
+                          <p className="text-muted-foreground">Failure rate</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-6 text-sm">
-                      <div className="text-right">
-                        <p className="font-medium text-foreground">
-                          {repo.openPRs}
-                        </p>
-                        <p className="text-muted-foreground">Open PRs</p>
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
+                    <div className="text-sm text-muted-foreground">
+                      Showing {startIndex + 1}-{Math.min(endIndex, totalRepos)}{" "}
+                      of {totalRepos} repositories
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePreviousPage}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+
+                      <div className="flex items-center space-x-1">
+                        {Array.from(
+                          { length: totalPages },
+                          (_, i) => i + 1
+                        ).map((page) => {
+                          // Show first page, last page, current page, and pages around current
+                          const showPage =
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 &&
+                              page <= currentPage + 1);
+
+                          const showEllipsis =
+                            (page === currentPage - 2 && currentPage > 3) ||
+                            (page === currentPage + 2 &&
+                              currentPage < totalPages - 2);
+
+                          if (showEllipsis) {
+                            return (
+                              <span
+                                key={page}
+                                className="px-2 text-muted-foreground"
+                              >
+                                ...
+                              </span>
+                            );
+                          }
+
+                          if (!showPage) return null;
+
+                          return (
+                            <Button
+                              key={page}
+                              variant={
+                                currentPage === page ? "default" : "outline"
+                              }
+                              size="sm"
+                              onClick={() => handlePageClick(page)}
+                              className="h-8 w-8 p-0"
+                            >
+                              {page}
+                            </Button>
+                          );
+                        })}
                       </div>
-                      <div className="text-right">
-                        <p className="font-medium text-foreground">
-                          {repo.failureRate.toFixed(0)}%
-                        </p>
-                        <p className="text-muted-foreground">Failure rate</p>
-                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextPage}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
