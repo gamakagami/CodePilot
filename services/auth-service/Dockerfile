@@ -1,14 +1,14 @@
 ##############################
 # 1. BUILD STAGE
 ##############################
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
 WORKDIR /app
 
 # Prevent Docker cache issues when dependencies change
 ARG CACHEBUST=1
 
-# Copy package files first (best practice for caching)
+# Copy package files first
 COPY package*.json ./
 COPY package-lock.json* ./
 
@@ -32,12 +32,9 @@ RUN npm run build
 ##############################
 # 2. PRODUCTION STAGE
 ##############################
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
-
-# Install wget for Railway health checks (optional)
-RUN apk add --no-cache wget
 
 # Copy package files
 COPY package*.json ./
@@ -59,5 +56,5 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 # Expose service port
 EXPOSE 4001
 
-# Start the service
+# Start the service (your entrypoint)
 CMD ["node", "dist/main.js"]
