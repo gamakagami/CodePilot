@@ -23,11 +23,11 @@ class PredictionService {
       await prisma.prediction.create({
         data: {
           timestamp: new Date(data.timestamp),
-          developer: data.developer,
-          moduleType: data.module_type,
-          linesAdded: data.lines_added,
-          linesDeleted: data.lines_deleted,
-          filesChanged: data.files_changed,
+         developer: data.developer || "unknown",           
+      moduleType: data.module_type || "general",        
+      linesAdded: data.lines_added || 0,                
+      linesDeleted: data.lines_deleted || 0,         
+      filesChanged: data.files_changed || 1,  
           avgFunctionComplexity: data.avg_function_complexity,
           codeCoverageChange: data.code_coverage_change,
           buildDuration: data.build_duration,

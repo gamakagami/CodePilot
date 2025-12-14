@@ -99,7 +99,7 @@ class AnalysisService {
     this.embedService = new EmbeddingService();
   }
 
-  async analyze(input: AnalysisInput): Promise<CodeAnalysisResult> {
+  async analyze(input: AnalysisInput): Promise<CodeAnalysisResult | null> {
     const warnings: string[] = [];
     const fileId = input.fileId || `file_${Date.now()}`;
     
@@ -108,7 +108,17 @@ class AnalysisService {
     // Step 1: Parse code structure
     let parsed: any;
     try {
-      parsed = await this.parserService.parseCode(input.code);
+      // 🔧 FIX: Remove await - parseCode is synchronous
+      // Also ensure input.code is a plain string
+      const codeString = String(input.code);
+      console.log(`Code type: ${typeof input.code}, length: ${codeString.length}`);
+      
+      parsed = this.parserService.parseCode(codeString);
+      
+      if (!parsed) {
+        console.warn(`Failed to parse ${fileId}, skipping file`);
+        return null;
+      }
       console.log(`Parsed: ${parsed.functions.length} functions, ${parsed.imports.length} imports`);
     } catch (err: any) {
       console.error("Parse error:", err);

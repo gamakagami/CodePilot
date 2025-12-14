@@ -14,7 +14,17 @@ export class ParserController {
         });
       }
 
+      console.log(`\n📝 Received parse request with ${code.length} characters`);
+      console.log(`First 100 chars: ${code.substring(0, 100)}...`);
+
       const result = parserService.parseCode(code);
+      
+      if (result === null) {
+        return res.status(400).json({
+          error: "Failed to parse code - invalid syntax or empty input"
+        });
+      }
+
       return res.json(result);
     } catch (error: any) {
       console.error("Parse error:", error);

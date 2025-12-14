@@ -34,21 +34,32 @@ export interface ReviewRequest {
   // code?: string;
 }
 
-// Output: Structured review
+export interface BestPractice {
+  category: string;
+  priority: "high" | "medium" | "low";
+  title: string;
+  currentState: string;
+  recommendedState: string;
+  benefits: string;
+  implementation: {
+    steps: string[];
+    codeExample?: string;
+  };
+  resources?: string[];
+}
+
 export interface ReviewResponse {
   summary: string;
   riskLevel: "low" | "medium" | "high" | "critical";
   shouldMerge: boolean;
-  
   issues: ReviewIssue[];
+  bestPractices?: BestPractice[];
   recommendations: string[];
-  
   codeQuality: {
-    score: number; // 0-100
+    score: number;
     strengths: string[];
-    weaknesses: string[];
+    improvementAreas?: string[];
   };
-
   generatedAt: string;
 }
 
