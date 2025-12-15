@@ -23,18 +23,18 @@ class PredictionService {
       await prisma.prediction.create({
         data: {
           timestamp: new Date(data.timestamp),
-         developer: data.developer || "unknown",           
-      moduleType: data.module_type || "general",        
-      linesAdded: data.lines_added || 0,                
-      linesDeleted: data.lines_deleted || 0,         
-      filesChanged: data.files_changed || 1,  
-          avgFunctionComplexity: data.avg_function_complexity,
-          codeCoverageChange: data.code_coverage_change,
-          buildDuration: data.build_duration,
+          developer: data.developer || "unknown",
+          moduleType: data.module_type || "general",
+          linesAdded: data.lines_added || 0,
+          linesDeleted: data.lines_deleted || 0,
+          filesChanged: data.files_changed || 1,
+          codeCoverageChange: data.code_coverage_change || 0,
+          buildDuration: data.build_duration || 0,
           containsTestChanges: data.contains_test_changes === 1,
-          previousFailureRate: data.previous_failure_rate,
+          previousFailureRate: data.previous_failure_rate || 0,
           predictedFailure: result.predicted_failure === 1,
-          failureProbability: result.failure_probability
+          failureProbability: result.failure_probability,
+          avgFunctionComplexity: data.avg_function_complexity || 0
         }
       });
       console.log("Prediction stored in database");

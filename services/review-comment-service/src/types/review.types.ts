@@ -24,14 +24,12 @@ export interface ReviewRequest {
   
   // From prediction service
   prediction: {
-    predicted_failure: number;
-    failure_probability: number;
-    will_fail: boolean;
-    confidence: string;
-  };
-
-  // Raw code is not needed - all info comes from analysis
-  // code?: string;
+  predicted_failure: number;
+  failure_probability: number;
+  will_fail: boolean;
+  confidence: string;
+  reasoning?: string; // ✅ Add this field
+};
 }
 
 export interface BestPractice {

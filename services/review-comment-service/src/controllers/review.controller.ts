@@ -4,39 +4,62 @@ import { reviewService } from "../services/review.service";
 export const reviewController = {
   async generateReview(req: Request, res: Response) {
     try {
+      console.log('🔍 [REVIEW CONTROLLER] Received request');
+      
       const { analysis, prediction } = req.body;
 
-      // Validate required fields
       if (!analysis || !prediction) {
-        return res.status(400).json({ 
-          success: false,
-          error: "Missing required fields: 'analysis' and 'prediction' are required" 
-        });
-      }
-
-      // Validate analysis structure
-      if (!analysis.metrics || !analysis.mernPatterns) {
+        console.error('❌ [REVIEW CONTROLLER] Missing required fields');
         return res.status(400).json({
           success: false,
-          error: "Invalid analysis structure"
+          error: 'Missing required fields: analysis and prediction'
         });
       }
 
+      console.log('🔍 [REVIEW CONTROLLER] Request data:');
+      console.log('   - Analysis fileId:', analysis.fileId);
+      console.log('   - Prediction will_fail:', prediction.will_fail);
+      console.log('   - Prediction failure_probability:', prediction.failure_probability);
+      console.log('   - Prediction reasoning:', prediction.reasoning);
+
+      console.log('🔍 [REVIEW CONTROLLER] Calling review service...');
+      
       const review = await reviewService.generateReview({
         analysis,
         prediction
       });
 
-      res.json({
+      console.log('🔍 [REVIEW CONTROLLER] Review received from service:');
+      console.log('   - Has summary:', !!review.summary);
+      console.log('   - Has issues:', !!review.issues);
+      console.log('   - Issues is array:', Array.isArray(review.issues));
+      console.log('   - Issues count:', review.issues?.length || 0);
+      
+      if (review.issues && review.issues.length > 0) {
+        console.log('   - First issue:', JSON.stringify(review.issues[0], null, 2));
+      } else {
+        console.log('   ⚠️  NO ISSUES IN REVIEW!');
+      }
+
+      // IMPORTANT: Return correct structure
+      const response = {
         success: true,
-        data: review
-      });
+        data: {
+          review: review
+        }
+      };
+
+      console.log('🔍 [REVIEW CONTROLLER] Sending response with structure:');
+      console.log('   - response.data.review.issues.length:', response.data.review.issues?.length || 0);
+
+      return res.status(200).json(response);
 
     } catch (error: any) {
-      console.error("Review generation error:", error);
-      res.status(500).json({ 
+      console.error('❌ [REVIEW CONTROLLER] Error:', error.message);
+      console.error('Stack:', error.stack);
+      return res.status(500).json({
         success: false,
-        error: error.message || "Failed to generate review" 
+        error: error.message || 'Failed to generate review'
       });
     }
   }

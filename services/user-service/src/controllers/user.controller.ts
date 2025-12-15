@@ -108,8 +108,17 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
   try {
     const prId = Number(req.params.prId);
 
-    const payload = await userService.buildPullRequestPayload(prId);
+    if (Number.isNaN(prId)) {
+      return res.status(400).json({ error: "Invalid pull request ID" });
+    }
 
+    console.log(`📝 Submitting PR ${prId} for analysis...`);
+
+    // Step 1: Build the payload
+    const payload = await userService.buildPullRequestPayload(prId);
+    console.log('✅ Payload built successfully');
+
+    // Step 2: Get PR details
     const pr = await prisma.pullRequest.findUnique({
       where: { id: prId },
       include: {
@@ -124,6 +133,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     const repo = pr.repository;
     const userProfile = repo.userProfile;
 
+    // Step 3: Prepare orchestrator payload
     const orchestratorPayload = {
       ...payload,
       repositoryFullName: `${userProfile.githubUsername}/${repo.name}`,
@@ -131,16 +141,59 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
       prUrl: `https://github.com/${userProfile.githubUsername}/${repo.name}/pull/${pr.number}`
     };
 
+    console.log('📤 Sending to orchestrator...');
+
+    // Step 4: Call orchestrator
     const response = await axios.post(
       `${process.env.ORCHESTRATOR_URL}/api/analyze-pr`,
       orchestratorPayload,
-      { headers: { Authorization: req.headers.authorization } }
+      { 
+        headers: { Authorization: req.headers.authorization },
+        timeout: 120000  // 2 minute timeout
+      }
     );
+
+    console.log('📥 Orchestrator response received');
+    console.log('Response structure:', JSON.stringify({
+      success: response.data.success,
+      hasData: !!response.data.data,
+      dataKeys: response.data.data ? Object.keys(response.data.data) : []
+    }));
+
+    // Step 5: Validate response structure
+    if (!response.data) {
+      throw new Error('Orchestrator returned empty response');
+    }
+
+    if (!response.data.success) {
+      throw new Error(`Orchestrator failed: ${response.data.error || 'Unknown error'}`);
+    }
+
+    if (!response.data.data) {
+      throw new Error('Orchestrator response missing data field');
+    }
 
     const result = response.data.data;
 
-    await userService.storePullRequestAnalysis(prId, result);
+    // Validate result has required fields
+    if (!result.analysis || !result.prediction || !result.review) {
+      console.warn('⚠️ Incomplete orchestrator response:', {
+        hasAnalysis: !!result.analysis,
+        hasPrediction: !!result.prediction,
+        hasReview: !!result.review
+      });
+    }
 
+    console.log('💾 Storing analysis results...');
+
+    // Step 6: Store the analysis
+    await userService.storePullRequestAnalysis(prId, result);
+    
+    console.log('✅ Analysis stored successfully');
+
+    // Step 7: Fetch and store changed files
+    console.log('📂 Fetching changed files from GitHub...');
+    
     const filesResponse = await axios.get(
       `https://api.github.com/repos/${userProfile.githubUsername}/${repo.name}/pulls/${pr.number}/files`,
       {
@@ -152,32 +205,46 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     );
 
     const files = filesResponse.data;
+    console.log(`📄 Found ${files.length} changed files`);
 
+    // Clear old files and add new ones
     await prisma.changedFile.deleteMany({ where: { pullRequestId: prId } });
 
     if (files.length > 0) {
       await prisma.changedFile.createMany({
         data: files.map((f: any) => ({
           filename: f.filename,
-          additions: f.additions,
-          deletions: f.deletions,
+          additions: f.additions || 0,
+          deletions: f.deletions || 0,
           complexity: result.analysis?.metrics?.cyclomaticComplexity ?? null,
           diff: f.patch ?? null,
           pullRequestId: prId
         }))
       });
+      console.log('✅ Changed files stored');
     }
+
+    console.log('🎉 PR submission complete!');
 
     return res.json({
       success: true,
       stored: true,
       analysis: result
     });
+
   } catch (err: any) {
-    console.error("SUBMIT ERROR:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to submit PR to orchestrator" });
+    console.error("❌ SUBMIT ERROR:", err.message || err);
+    
+    // Log more details for debugging
+    if (err.response) {
+      console.error("Response status:", err.response.status);
+      console.error("Response data:", err.response.data);
+    }
+    
+    return res.status(500).json({ 
+      error: "Failed to submit PR to orchestrator",
+      details: err.message || "Unknown error"
+    });
   }
 };
 

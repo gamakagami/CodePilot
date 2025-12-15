@@ -477,8 +477,10 @@ export const getAverageAnalysisDuration = async () => {
   return result._avg.analysisDuration || 0;
 };
 
-export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
+export const storePullRequestAnalysis = async (prId: number, result: any) => {
   return prisma.$transaction(async (tx) => {
+    console.log('🔍 [USER SERVICE] storePullRequestAnalysis called for PR:', prId);
+    
     const pr = await tx.pullRequest.findUnique({
       where: { id: prId },
       select: { repositoryId: true }
@@ -486,18 +488,78 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
 
     if (!pr) throw new Error("Pull request not found");
 
+    // ✅ Validate result exists
+    if (!result || typeof result !== 'object') {
+      console.error('❌ [USER SERVICE] Invalid result:', result);
+      throw new Error('Invalid analysis result: result is null or not an object');
+    }
+
+    // 🔍 DEBUG: Log to understand the structure
+    const resultKeys = Object.keys(result);
+    console.log('🔍 [USER SERVICE] Result keys:', resultKeys);
+    
+    if (resultKeys.length === 0) {
+      console.error('❌ [USER SERVICE] Result object is empty');
+      throw new Error('Invalid analysis result: result object is empty');
+    }
+
+    // Show structure safely
+    try {
+      const structurePreview = JSON.stringify(result, null, 2).substring(0, 800);
+      console.log('🔍 [USER SERVICE] Result structure preview:', structurePreview);
+    } catch (e) {
+      console.log('⚠️  [USER SERVICE] Could not stringify result');
+    }
+
+    // ✅ Safely extract data with null checks
+    const analysis = result.analysis || {};
+    const prediction = result.prediction || {};
+    const review = result.review || {};
+    const performance = result.performance || {};
+
+    console.log('🔍 [USER SERVICE] Extracted components:');
+    console.log('   - analysis:', !!analysis, '(has metrics:', !!analysis.metrics, ')');
+    console.log('   - prediction:', !!prediction, '(failure_probability:', prediction.failure_probability, ')');
+    console.log('   - review:', !!review, '(has summary:', !!review.summary, ')');
+    console.log('   - performance:', !!performance);
+
+    // 🔍 CRITICAL: Check review.issues specifically
+    console.log('🔍 [USER SERVICE] Review issues analysis:');
+    console.log('   - review object exists:', !!review);
+    console.log('   - has "issues" property:', 'issues' in review);
+    console.log('   - issues is array:', Array.isArray(review.issues));
+    console.log('   - issues count:', review.issues?.length || 0);
+    
+    if (review.issues && Array.isArray(review.issues) && review.issues.length > 0) {
+      console.log('   - First issue keys:', Object.keys(review.issues[0]));
+      console.log('   - First issue:', JSON.stringify(review.issues[0], null, 2));
+    } else {
+      console.log('   ⚠️  No issues in review object');
+    }
+
+    // Update the pull request with analysis results
     const updatedPr = await tx.pullRequest.update({
       where: { id: prId },
       data: {
-        analysisSummary: analysis.review?.summary ?? null,
-        riskScore: analysis.prediction?.failure_probability ?? null,
-        predictedFailure: analysis.prediction?.will_fail ?? null,
-        analysisDuration: analysis.performance?.totalDuration ?? null,
+        // Review data
+        analysisSummary: review.summary ?? null,
+        
+        // Prediction data
+        riskScore: prediction.failure_probability ?? null,
+        predictedFailure: prediction.will_fail ?? null,
+        
+        // Performance data
+        analysisDuration: performance.totalDuration ?? null,
+        
+        // Other fields
         lastAnalyzed: new Date(),
-        rating: analysis.rating ?? null
+        rating: result.rating ?? null
       }
     });
 
+    console.log('✅ [USER SERVICE] Pull request updated with analysis data');
+
+    // Calculate failure rate for the repository
     const allPrs = await tx.pullRequest.findMany({
       where: {
         repositoryId: pr.repositoryId,
@@ -510,6 +572,7 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
     if (allPrs.length > 0) {
       const failures = allPrs.filter((p) => p.actualFailure === true).length;
       failureRate = failures / allPrs.length;
+      console.log(`📊 [USER SERVICE] Repository failure rate: ${(failureRate * 100).toFixed(1)}% (${failures}/${allPrs.length})`);
     }
 
     await tx.repository.update({
@@ -520,19 +583,86 @@ export const storePullRequestAnalysis = async (prId: number, analysis: any) => {
       }
     });
 
+    // Clear old review comments
     await tx.reviewComment.deleteMany({
       where: { pullRequestId: prId }
     });
+    console.log('🗑️  [USER SERVICE] Old review comments cleared');
 
-    if (analysis.review?.issues?.length) {
+    // ✅ Create new review comments from issues
+    console.log('🔍 [USER SERVICE] Attempting to create review comments...');
+    
+    if (!review) {
+      console.log('❌ [USER SERVICE] Review object is null/undefined');
+      return updatedPr;
+    }
+    
+    if (!review.issues) {
+      console.log('❌ [USER SERVICE] Review.issues is null/undefined');
+      return updatedPr;
+    }
+    
+    if (!Array.isArray(review.issues)) {
+      console.log('❌ [USER SERVICE] Review.issues is not an array, it is:', typeof review.issues);
+      return updatedPr;
+    }
+
+    const issueCount = review.issues.length;
+    console.log(`📝 [USER SERVICE] Found ${issueCount} issues in review`);
+
+    if (issueCount === 0) {
+      console.log('ℹ️  [USER SERVICE] Issues array is empty - no comments to create');
+      return updatedPr;
+    }
+
+    // Filter out any invalid issues
+    console.log('🔍 [USER SERVICE] Validating issues...');
+    const validIssues = review.issues.filter((issue: any, index: number) => {
+      const isValid = issue && 
+                     typeof issue === 'object' && 
+                     issue.title && 
+                     issue.description;
+      
+      if (!isValid) {
+        console.warn(`⚠️  [USER SERVICE] Issue #${index} is invalid:`, JSON.stringify(issue));
+      } else {
+        console.log(`✅ [USER SERVICE] Issue #${index} is valid: "${issue.title}"`);
+      }
+      
+      return isValid;
+    });
+
+    console.log(`✅ [USER SERVICE] Found ${validIssues.length} valid issues out of ${issueCount}`);
+
+    if (validIssues.length === 0) {
+      console.log('⚠️  [USER SERVICE] No valid issues to create comments for');
+      return updatedPr;
+    }
+
+    // Create the comments
+    console.log(`💾 [USER SERVICE] Creating ${validIssues.length} review comments in database...`);
+    
+    try {
       await tx.reviewComment.createMany({
-        data: analysis.review.issues.map((issue: any) => ({
-          file: issue.location || "global",
-          line: 0,
-          comment: `${issue.title}: ${issue.description}\nSuggestion: ${issue.suggestion}`,
-          pullRequestId: prId
-        }))
+        data: validIssues.map((issue: any, index: number) => {
+          const comment = {
+            file: issue.location || "global",
+            line: issue.line || 0,
+            comment: `**${issue.severity?.toUpperCase() || 'INFO'}**: ${issue.title}\n\n${issue.description}\n\n**Suggestion:** ${issue.suggestion || 'Review this issue'}`,
+            pullRequestId: prId
+          };
+          console.log(`   - Comment #${index}:`, {
+            file: comment.file,
+            line: comment.line,
+            severity: issue.severity
+          });
+          return comment;
+        })
       });
+      console.log(`✅ [USER SERVICE] Successfully created ${validIssues.length} review comments in database!`);
+    } catch (error: any) {
+      console.error('❌ [USER SERVICE] Failed to create review comments:', error.message);
+      throw error;
     }
 
     return updatedPr;

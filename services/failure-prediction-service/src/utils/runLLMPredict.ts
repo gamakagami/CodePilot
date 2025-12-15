@@ -5,167 +5,93 @@ const client = new Anthropic({
 });
 
 export async function runLLMPredict(analysis: any): Promise<any> {
-  const prompt = `
-You are an expert at predicting actual test failures and production issues in MERN stack applications.
+  const prompt = `You are a code analyzer that predicts if code changes will cause failures.
 
-CRITICAL RULE: You must have CONCRETE EVIDENCE of a failure-causing issue to predict failure. If you cannot point to a specific bug or breaking change, predict PASS.
-
-## Analysis Data:
+ANALYSIS DATA:
 ${JSON.stringify(analysis, null, 2)}
 
-## Your Prediction Methodology:
+YOUR TASK:
+Analyze this code/change data and determine if it will cause a runtime failure.
 
-**BEFORE predicting failure, you MUST identify at least ONE of these CONCRETE issues:**
+WHAT COUNTS AS A FAILURE (predict failure_probability >= 0.5):
 
-### CONCRETE FAILURE CAUSES (These actually break code):
+1. UNDEFINED VARIABLES/PROPERTIES
+   - Using variables that don't exist
+   - Accessing properties on undefined/null (e.g., user.name when user is null)
+   - Typos in variable names
 
-1. **Syntax/Runtime Errors:**
-   - Accessing properties on undefined/null (e.g., \`user.name\` when user could be null)
-   - Calling non-existent functions or methods
-   - Type errors in operations (e.g., doing math on strings)
-   - Missing required function parameters
-   - Using variables before declaration
-   - Incorrect async/await usage causing unhandled rejections
+2. SYNTAX/TYPE ERRORS
+   - Missing required parameters in function calls
+   - Wrong data types (doing math on strings, etc.)
+   - Missing return statements where required
+   - Assignment in conditionals (if (x = 5) instead of if (x === 5))
 
-2. **Breaking Changes:**
-   - Function signature changed but callers not updated
-   - API endpoint renamed but frontend still calls old endpoint
-   - Required field removed from API response that frontend expects
-   - Database schema changed without migration
-   - Removed dependency that's still imported elsewhere
+3. LOGIC BUGS
+   - Off-by-one errors (i <= array.length instead of i < array.length)
+   - Wrong operators (> instead of >=, == instead of ===)
+   - Incorrect conditions that always/never trigger
 
-3. **Logic Bugs:**
-   - Off-by-one errors in loops (e.g., \`i <= array.length\` instead of \`i < array.length\`)
-   - Wrong comparison operators (e.g., \`==\` vs \`===\`, \`>\` vs \`>=\`)
-   - Missing return statements in functions that should return values
-   - Incorrect conditional logic (e.g., \`if (x = 5)\` instead of \`if (x === 5)\`)
-   - Division by zero or math errors
+4. BREAKING CHANGES
+   - Changed function signatures without updating callers
+   - Renamed/removed API endpoints still being called
+   - Changed database fields still being accessed
+   - Removed dependencies still being imported
 
-4. **Integration Failures:**
-   - API endpoint path doesn't match between frontend and backend
-   - HTTP method mismatch (frontend sends POST, backend expects GET)
-   - Request body format doesn't match what backend expects
-   - Missing required headers or authentication tokens
-   - CORS configuration prevents valid requests
+5. INTEGRATION FAILURES
+   - Frontend calling wrong API endpoint
+   - HTTP method mismatches (POST vs GET)
+   - Missing required headers/auth tokens
+   - Request/response format mismatches
 
-5. **Critical Missing Error Handling:**
-   - Async database operations without try-catch in critical paths (auth, payments, checkout)
-   - No error handling when making external API calls
-   - File operations without error handling
-   - Network requests without error handling
+WHAT DOES NOT COUNT AS FAILURE (predict failure_probability < 0.5):
 
-### NON-ISSUES (Do NOT predict failure for these):
+- High complexity (code still works)
+- Long functions (length doesn't break code)
+- Missing comments
+- Console.log statements
+- Code style issues
+- Missing tests
+- Performance issues (unless causing timeout)
+- Missing error handling (code still executes)
+- Missing validation (if data source is trusted)
 
-❌ Missing best practices (code works, just not optimal)
-❌ High complexity (complexity doesn't cause failures by itself)
-❌ Long functions (length doesn't cause failures)
-❌ Missing comments or documentation
-❌ Console.log statements
-❌ Not using TypeScript (if JavaScript code is valid)
-❌ Not using proper error handling in non-critical paths
-❌ Missing input validation (if data source is trusted)
-❌ Not following design patterns
-❌ Performance issues (unless they cause timeouts)
-❌ Code style violations
-❌ Missing tests (tests don't affect code execution)
+ANALYSIS APPROACH:
 
-## Prediction Process:
+1. Look for concrete bugs in the data
+2. Check if any variables/functions are used but not defined
+3. Check for breaking changes to APIs/contracts
+4. Check for logic errors in conditions/loops
+5. If you find a CONCRETE bug → predict FAILURE (0.5-1.0)
+6. If no concrete bugs found → predict PASS (0.0-0.4)
 
-### Step 1: Search for Concrete Issues
-Look through the code/analysis for:
-- Obvious bugs or errors
-- Breaking changes to existing APIs/functions
-- Missing required dependencies
-- Type mismatches
-- Logic errors
+CRITICAL FORMATTING RULES:
+1. Return ONLY valid JSON
+2. Use single spaces in reasoning, NO line breaks or tabs
+3. Keep reasoning under 200 characters
+4. No special characters in strings
 
-### Step 2: Can You Prove It Will Fail?
-Ask yourself:
-- Can I point to a specific line/pattern that will cause a runtime error?
-- Can I explain exactly HOW this will break?
-- Is there a concrete bug, not just a style issue?
+RESPONSE FORMAT:
+Return ONLY a JSON object on a single line:
 
-### Step 3: Make Your Prediction
-- If YES → Predict failure (0.5-1.0 probability)
-- If NO → Predict pass (0.0-0.4 probability)
-- If UNSURE → Default to pass (0.2-0.3 probability)
-
-## Examples of Valid Failure Predictions:
-
-✅ VALID: "Code accesses req.user.email without checking if req.user exists - will crash with TypeError"
-✅ VALID: "Function expects 3 parameters but is being called with 2 - will produce undefined values"
-✅ VALID: "API endpoint changed from /api/users to /api/v2/users but frontend still calls /api/users - 404 error"
-✅ VALID: "Array index uses <= length instead of < length - will access undefined on last iteration"
-✅ VALID: "Async function in payment processing has no try-catch - unhandled rejections will crash the app"
-
-## Examples of Invalid Failure Predictions:
-
-❌ INVALID: "Function has cyclomatic complexity of 12 - likely to fail"
-   - Why invalid: Complexity doesn't cause failures, bugs do
-
-❌ INVALID: "No input validation on this endpoint - will fail"
-   - Why invalid: If data source is controlled/trusted, it may work fine
-
-❌ INVALID: "Missing error handling - will fail"
-   - Why invalid: Code works even without error handling in many cases
-
-❌ INVALID: "Not following REST conventions - will fail"
-   - Why invalid: Non-standard APIs still work
-
-❌ INVALID: "Function is 100 lines long - will fail"
-   - Why invalid: Length doesn't cause failures
-
-## Risk Assessment Guidelines:
-
-**Predict HIGH failure (0.7-1.0) when:**
-- Multiple concrete bugs identified
-- Breaking change in critical path (auth, payments, data mutations)
-- Clear runtime error that will definitely crash
-- API contract broken between frontend/backend
-
-**Predict MEDIUM failure (0.4-0.6) when:**
-- One concrete bug in non-critical path
-- Potential race condition that may trigger
-- Edge case that's likely to be hit
-- Missing error handling in moderately critical path
-
-**Predict LOW failure (0.1-0.3) when:**
-- No concrete bugs found
-- Code quality issues only
-- Changes are isolated and well-tested
-- Refactoring without logic changes
-
-**Predict VERY LOW failure (0.0-0.1) when:**
-- Code is clearly correct
-- Good test coverage
-- Small, safe changes
-- Type safety prevents errors
-
-## Your Response Format:
-
-Respond with JSON in this format:
-{
-  "predicted_failure": 0 or 1,
-  "failure_probability": 0.0 to 1.0,
-  "reasoning": "Brief explanation of why you predict pass or fail. If predicting failure, cite the specific bug/issue."
-}
+{"predicted_failure": 0 or 1, "failure_probability": 0.0-1.0, "reasoning": "Brief single-line explanation"}
 
 RULES:
-1. Use predicted_failure = 1 ONLY if failure_probability >= 0.5
-2. If predicting failure, your "reasoning" MUST cite a specific concrete issue
-3. If you cannot cite a specific bug, you MUST predict pass
-4. "Bad practices" or "complexity" are NOT valid reasons for failure prediction
-5. When in doubt, predict PASS - false positives are worse than false negatives
+- predicted_failure = 1 if failure_probability >= 0.5
+- predicted_failure = 0 if failure_probability < 0.5
+- If you see an undefined variable/function → ALWAYS predict failure
+- If you see a breaking change → ALWAYS predict failure
+- If you only see style/complexity issues → ALWAYS predict pass
+- When uncertain → predict pass (0.2-0.3 probability)
+- Return ONLY the JSON object on ONE LINE
+- NO line breaks in reasoning field
 
-Remember: Working code with bad practices is still working code. Only predict failure if you can prove it will break.
-`;
-
+Now analyze the data and make your prediction:`;
 
   const response = await client.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
-    });
+    model: "claude-3-haiku-20240307",
+    max_tokens: 1024,
+    messages: [{ role: "user", content: prompt }],
+  });
 
   const block = response.content.find(b => b.type === "text");
   if (!block || !("text" in block)) {
@@ -173,8 +99,56 @@ Remember: Working code with bad practices is still working code. Only predict fa
   }
 
   try {
-    return JSON.parse(block.text);
-  } catch (err) {
-    throw new Error("Failed to parse LLM response: " + block.text);
+    // Extract and clean the response text
+    let text = block.text.trim();
+    
+    console.log("Raw LLM Response:", text);
+    
+    // Remove markdown code blocks if present
+    text = text.replace(/```json\n?/g, '').replace(/\n?```/g, '');
+    
+    // Clean up control characters and excess whitespace in the entire response
+    text = text
+      .replace(/[\n\r\t]/g, ' ')  // Replace newlines, returns, tabs with spaces
+      .replace(/\s+/g, ' ')        // Replace multiple spaces with single space
+      .trim();
+    
+    // Try to find JSON object in the text
+    const jsonMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+    if (!jsonMatch) {
+      throw new Error(`No JSON object found in response: ${text.substring(0, 200)}...`);
+    }
+    
+    let jsonStr = jsonMatch[0];
+    
+    // Additional cleaning for the JSON string
+    // Fix common issues with quotes and control characters
+    jsonStr = jsonStr
+      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')  // Remove control characters
+      .replace(/\s+/g, ' ')  // Normalize whitespace again
+      .trim();
+    
+    console.log("Cleaned JSON string:", jsonStr);
+    
+    const parsed = JSON.parse(jsonStr);
+    
+    // Validate the response has required fields
+    if (typeof parsed.predicted_failure === 'undefined' || 
+        typeof parsed.failure_probability === 'undefined') {
+      throw new Error('Response missing required fields');
+    }
+    
+    return parsed;
+    
+  } catch (err: any) {
+    console.error("Full LLM Response:", block.text);
+    console.error("Parse error:", err.message);
+    
+    // Return a safe fallback
+    return {
+      predicted_failure: 0,
+      failure_probability: 0.3,
+      reasoning: "Failed to parse LLM response, defaulting to pass"
+    };
   }
 }
