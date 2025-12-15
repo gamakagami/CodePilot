@@ -29,6 +29,7 @@ export const reviewController = {
         prediction
       });
 
+
       console.log('🔍 [REVIEW CONTROLLER] Review received from service:');
       console.log('   - Has summary:', !!review.summary);
       console.log('   - Has issues:', !!review.issues);

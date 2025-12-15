@@ -27,12 +27,35 @@ export interface SimilarCode {
 }
 
 export interface MERNPatterns {
+  // Existing
   hasErrorHandling: boolean;
   hasValidation: boolean;
   usesMongoDB: boolean;
   usesExpress: boolean;
   potentialIssues: string[];
+
+  // Async
+  hasAsyncFunctions: boolean;
+  asyncFunctionCount: number;
+  hasPromises: boolean;
+  hasUnhandledPromises: boolean;
+
+  // Express
+  usesRouterModules: boolean;
+  hasCentralizedErrorMiddleware: boolean;
+  usesStatusCodesCorrectly: boolean;
+
+  // Mongoose
+  usesMongoose: boolean;
+  hasSchemaValidation: boolean;
+  hasIndexesDefined: boolean;
+  usesLeanQueries: boolean;
+
+  // API Validation
+  validatesRequestBody: boolean;
+  validatesQueryParams: boolean;
 }
+
 
 export interface PredictionFeatures {
   timestamp: string;
@@ -225,13 +248,7 @@ class AnalysisService {
     } catch (err: any) {
       console.error("MERN pattern detection error:", err);
       warnings.push(`MERN pattern detection failed: ${err.message}`);
-      mernPatterns = {
-        hasErrorHandling: false,
-        hasValidation: false,
-        usesMongoDB: false,
-        usesExpress: false,
-        potentialIssues: []
-      };
+      mernPatterns = this.getDefaultMERNPatterns();
     }
 
     // Step 7: Build prediction features
@@ -413,51 +430,38 @@ class AnalysisService {
   }
 
   private detectMERNPatterns(code: string, parsed: any): MERNPatterns {
-    const potentialIssues: string[] = [];
+  const base = this.getDefaultMERNPatterns();
+  const potentialIssues: string[] = [];
 
-    const hasErrorHandling = this.checkErrorHandling(code);
-    if (!hasErrorHandling) {
-      potentialIssues.push("Missing try-catch in async functions");
-    }
-
-    const hasValidation = /validator|validate|joi|zod|yup/.test(code);
-    if (!hasValidation && /req\.body/.test(code)) {
-      potentialIssues.push("Possible missing input validation on req.body");
-    }
-
-    const usesMongoDB = /mongoose|mongodb|Schema|Model/.test(code);
-    const usesExpress = /express|Router|app\.(get|post|put|delete)/.test(code);
-
-    if (/query\(.*\$\{.*\}/.test(code) || /query\(.*\+.*\+/.test(code)) {
-      potentialIssues.push("Potential SQL/NoSQL injection vulnerability");
-    }
-
-    if (/res\.(send|json)\(/.test(code) && !/res\.status\(\d+\)/.test(code)) {
-      potentialIssues.push("Response without explicit status code");
-    }
-
-    if (/console\.log/.test(code)) {
-      potentialIssues.push("Contains console.log statements (should use logger)");
-    }
-
-    if (/(password|apikey|secret|token)\s*=\s*["'][^"']+["']/.test(code.toLowerCase())) {
-      potentialIssues.push("Possible hardcoded credentials detected");
-    }
-
-    return {
-      hasErrorHandling,
-      hasValidation,
-      usesMongoDB,
-      usesExpress,
-      potentialIssues
-    };
+  const hasErrorHandling = this.checkErrorHandling(code);
+  if (!hasErrorHandling) {
+    potentialIssues.push("Missing try-catch in async functions");
   }
+
+  const hasValidation = /validator|validate|joi|zod|yup/.test(code);
+  if (!hasValidation && /req\.body/.test(code)) {
+    potentialIssues.push("Possible missing input validation on req.body");
+  }
+
+  const usesMongoDB = /mongoose|mongodb|Schema|Model/.test(code);
+  const usesExpress = /express|Router|app\.(get|post|put|delete)/.test(code);
+
+  return {
+    ...base,
+    hasErrorHandling,
+    hasValidation,
+    usesMongoDB,
+    usesExpress,
+    potentialIssues
+  };
+}
+
 
   private checkErrorHandling(code: string): boolean {
     const asyncFunctions = code.match(/async\s+\w+[^{]*{([^}]+)}/g) || [];
     
     for (const fn of asyncFunctions) {
-      if (!fn.includes('try') || !fn.includes('catch')) {
+      if (fn.includes("await") && (!fn.includes("try") || !fn.includes("catch"))) {
         return false;
       }
     }
@@ -469,6 +473,34 @@ class AnalysisService {
     const match = importStatement.match(/from\s+["']([^"']+)["']/);
     return match ? match[1] : null;
   }
+
+  private getDefaultMERNPatterns(): MERNPatterns {
+  return {
+    hasErrorHandling: false,
+    hasValidation: false,
+    usesMongoDB: false,
+    usesExpress: false,
+    potentialIssues: [],
+
+    hasAsyncFunctions: false,
+    asyncFunctionCount: 0,
+    hasPromises: false,
+    hasUnhandledPromises: false,
+
+    usesRouterModules: false,
+    hasCentralizedErrorMiddleware: false,
+    usesStatusCodesCorrectly: false,
+
+    usesMongoose: false,
+    hasSchemaValidation: false,
+    hasIndexesDefined: false,
+    usesLeanQueries: false,
+
+    validatesRequestBody: false,
+    validatesQueryParams: false
+  };
+}
+
 }
 
 export default new AnalysisService();
