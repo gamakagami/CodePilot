@@ -41,11 +41,13 @@ export const reviewController = {
         console.log('   ⚠️  NO ISSUES IN REVIEW!');
       }
 
-      // IMPORTANT: Return correct structure
+      // IMPORTANT: Return a simple structure the orchestrator can pick up easily
+      // Provide both top-level `review` and nested `data.review` for compatibility.
       const response = {
         success: true,
+        review,
         data: {
-          review: review
+          review
         }
       };
 

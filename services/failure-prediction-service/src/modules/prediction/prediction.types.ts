@@ -15,6 +15,7 @@ export interface PredictionInput {
 export interface PredictionResult {
   predicted_failure: number;     
   failure_probability: number;   
+  reasoning?: string;
 }
 
 export interface PredictionResponse {

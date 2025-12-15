@@ -197,7 +197,9 @@ export class OrchestratorService {
         predicted_failure: prediction.predicted_failure,
         failure_probability: prediction.failure_probability,
         will_fail: prediction.will_fail,
-        confidence: prediction.confidence
+        confidence: prediction.confidence,
+        // include rationale so review service can produce issues
+        reasoning: prediction.reasoning
       }
     }, { timeout: 60000 });
     
