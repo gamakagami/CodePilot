@@ -204,6 +204,8 @@ ${analysis.mernPatterns.potentialIssues.length > 0 ?
 2. Issues array should ONLY contain critical bugs that will cause failures
 3. Best practices should be relevant to the actual code characteristics
 4. Use the prediction reasoning if provided: "${prediction.reasoning || 'N/A'}"
+5. In issues.description and issues.suggestion, include concrete identifiers/patterns from prediction.reasoning or detected patterns (potentialIssues, functions). Prefer exact tokens after words like "missing", "undefined", "regex", "identifier".
+6. Always mention the file "${analysis.fileId}" when describing/suggesting fixes so the PR comment is file-specific.
 
 # OUTPUT FORMAT - Return ONLY valid JSON:
 
@@ -218,7 +220,7 @@ ${analysis.mernPatterns.potentialIssues.length > 0 ?
     "description": "${prediction.reasoning}",
     "location": "${analysis.fileId}",
     "impact": "Code may fail in production",
-    "suggestion": "Review and fix the specific issue"
+    "suggestion": "${this.buildIssueSuggestion(prediction.reasoning, analysis)}"
   }]` : '[]'},
   "bestPractices": [${bestPracticesText}],
   "recommendations": [${recommendationsText}],
@@ -308,7 +310,7 @@ IMPORTANT: Return ONLY the JSON object above. No additional text.`;
       description: `ML model predicts failure. ${prediction.reasoning}`,
       location: analysis.fileId,
       impact: "Code may fail in production or testing",
-      suggestion: "Review the specific issues mentioned in the reasoning and address them before merging"
+      suggestion: this.buildIssueSuggestion(prediction.reasoning, analysis)
     });
   } else {
     console.log('   ℹ️  NOT adding critical issue because:');
@@ -552,6 +554,62 @@ describe('User Service', () => {
     },
     generatedAt: new Date().toISOString()
   };
+},
+
+  buildIssueSuggestion(reasoning?: string, analysis?: ReviewRequest["analysis"]): string {
+  const fileHint = analysis?.fileId ? ` in ${analysis.fileId}` : "";
+
+  const sanitized = reasoning ? reasoning.replace(/"/g, "'") : undefined;
+  const candidateFromReasoning = this.extractIdentifierFromText(sanitized);
+  const candidateFromIssues = this.extractIdentifierFromText(
+    (analysis?.mernPatterns?.potentialIssues || []).join(" ")
+  );
+  const identifier = candidateFromReasoning || candidateFromIssues;
+
+  if (!sanitized && identifier) {
+    return `Review "${identifier}"${fileHint} referenced in the PR changes and ensure it is defined and used correctly.`;
+  }
+
+  const undefinedMatch = sanitized?.match(/undefined (?:variable|property)\s+([A-Za-z0-9_.]+)/i);
+  if (undefinedMatch?.[1]) {
+    return `Define or import "${undefinedMatch[1]}"${fileHint}, or guard against it being undefined before use.`;
+  }
+
+  const missingPatternMatch = sanitized?.match(/missing (?:regex|pattern|field|property)\s+([A-Za-z0-9_.]+)/i);
+  if (missingPatternMatch?.[1]) {
+    return `Add or correct the "${missingPatternMatch[1]}" pattern${fileHint} so the code executes safely.`;
+  }
+
+  const logicMatch = sanitized?.match(/(?:logic|condition)\s+issue\s+with\s+([A-Za-z0-9_.]+)/i);
+  if (logicMatch?.[1]) {
+    return `Review the logic around "${logicMatch[1]}"${fileHint} to align with the intended behavior.`;
+  }
+
+  if (identifier) {
+    return `Focus on "${identifier}"${fileHint}: ensure it is defined, validated, and used as intended.`;
+  }
+
+  if (!sanitized) {
+    return `Investigate and resolve the failure the model detected${fileHint}.`;
+  }
+
+  return `Address the reported issue${fileHint}: ${sanitized}`;
+},
+
+  extractIdentifierFromText(text?: string): string | undefined {
+  if (!text) return undefined;
+
+  // Look for identifiers inside backticks, quotes, or bare words following typical cues
+  const tickMatch = text.match(/`([A-Za-z0-9_.-]+)`/);
+  if (tickMatch?.[1]) return tickMatch[1];
+
+  const quoteMatch = text.match(/["']([A-Za-z0-9_.-]+)["']/);
+  if (quoteMatch?.[1]) return quoteMatch[1];
+
+  const afterWordMatch = text.match(/\b(?:variable|property|field|param|function)\s+([A-Za-z0-9_.-]+)/i);
+  if (afterWordMatch?.[1]) return afterWordMatch[1];
+
+  return undefined;
 },
 
   convertIssueToBestPractice(issue: string, analysis: any): any {

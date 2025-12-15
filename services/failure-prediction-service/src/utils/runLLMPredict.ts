@@ -58,7 +58,7 @@ WHAT DOES NOT COUNT AS FAILURE (predict failure_probability < 0.5):
 ANALYSIS APPROACH:
 
 1. Look for concrete bugs in the data
-2. Check if any variables/functions are used but not defined
+2. Check if any variables/functions are used but not defined. NAME the exact identifier you found (no generic phrases).
 3. Check for breaking changes to APIs/contracts
 4. Check for logic errors in conditions/loops
 5. If you find a CONCRETE bug → predict FAILURE (0.5-1.0)
@@ -69,6 +69,7 @@ CRITICAL FORMATTING RULES:
 2. Use single spaces in reasoning, NO line breaks or tabs
 3. Keep reasoning under 200 characters
 4. No special characters in strings
+5. If mentioning undefined/missing items, include the exact variable/property/pattern name from the code (e.g., "undefined variable userToken").
 
 RESPONSE FORMAT:
 Return ONLY a JSON object on a single line:
