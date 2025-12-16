@@ -1,5 +1,6 @@
 import { llmClient } from "../utils/llmClient";
 import { CodeAnalysisResult } from "./analysis.service";
+import { codeTestService } from "./code-test.service";
 
 export interface ReviewRequest {
   analysis: CodeAnalysisResult;
@@ -9,1319 +10,711 @@ export interface ReviewRequest {
     confidence: string;
     reasoning?: string;
   };
+  code?: string;
   context?: {
     prNumber?: string;
     author?: string;
     branch?: string;
+    title?: string;
+    description?: string;
   };
 }
 
 export interface ReviewIssue {
   severity: "critical" | "high" | "medium" | "low";
-  category: string;
+  category: "error_handling" | "security" | "performance" | "maintainability" | "best_practices" | "mern_specific";
   title: string;
   description: string;
-  location: string;
-  codeSnippet?: string;
-  impact: string;
   suggestion: string;
-  resources?: string[];
-}
-
-export interface BestPractice {
-  category: string;
-  priority: "critical" | "high" | "medium" | "low";
-  title: string;
-  currentState: string;
-  recommendedState: string;
-  benefits: string;
-  implementation: {
-    steps: string[];
-    codeExample?: string;
-  };
-  resources?: string[];
+  lineNumber?: number;
+  codeSnippet?: string;
 }
 
 export interface ReviewResponse {
   summary: string;
+  prComment: string; // GitHub-style PR comment
   riskLevel: "critical" | "high" | "medium" | "low";
   shouldMerge: boolean;
+  shouldRequestChanges: boolean;
   issues: ReviewIssue[];
-  bestPractices: BestPractice[];
   recommendations: string[];
   codeQuality: {
     score: number;
     strengths: string[];
-    improvementAreas: string[];
+    weaknesses: string[];
+  };
+  mernSpecificFeedback: {
+    backend?: string[];
+    frontend?: string[];
+    database?: string[];
+    api?: string[];
   };
   generatedAt: string;
 }
 
 export const reviewService = {
-  async generateReview(request: ReviewRequest): Promise<ReviewResponse> {
-    console.log(`🔍 [FEEDBACK SERVICE] ===== STARTING FEEDBACK GENERATION =====`);
-    console.log(`🔍 [FEEDBACK SERVICE] File: ${request.analysis.fileId}`);
-    console.log(`🔍 [FEEDBACK SERVICE] Prediction: will_fail=${request.prediction.will_fail}, probability=${request.prediction.failure_probability}`);
-
-    const prompt = this.buildReviewPrompt(request);
+  // Built-in globals that don't need declarations
+  BUILT_IN_GLOBALS: new Set([
+    // Node.js globals
+    'require', 'module', 'exports', '__dirname', '__filename', 'process', 'console',
+    'Buffer', 'global', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval',
+    'setTimeout', 'clearTimeout', 'Promise', 'URL', 'URLSearchParams',
     
-    console.log(`🔍 [FEEDBACK SERVICE] Prompt generated, length: ${prompt.length} chars`);
-    console.log(`🔍 [FEEDBACK SERVICE] Calling LLM...`);
+    // Browser globals
+    'window', 'document', 'navigator', 'location', 'history', 'localStorage', 
+    'sessionStorage', 'fetch', 'XMLHttpRequest', 'FormData', 'Blob', 'File',
+    'alert', 'confirm', 'prompt', 'addEventListener', 'removeEventListener',
+    
+    // JavaScript built-ins
+    'Object', 'Array', 'String', 'Number', 'Boolean', 'Date', 'Math', 'JSON',
+    'RegExp', 'Error', 'TypeError', 'ReferenceError', 'SyntaxError', 'Map', 
+    'Set', 'WeakMap', 'WeakSet', 'Symbol', 'Proxy', 'Reflect', 'Intl',
+    'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURI', 'decodeURI',
+    'encodeURIComponent', 'decodeURIComponent', 'eval',
+    
+    // Common test framework globals
+    'describe', 'it', 'test', 'expect', 'beforeEach', 'afterEach', 'beforeAll', 
+    'afterAll', 'jest', 'jasmine', 'mocha', 'chai',
+    
+    // React globals (often available without import in JSX)
+    'React', 'ReactDOM',
+    
+    // Common environment variables
+    'process', '__DEV__', 'NODE_ENV',
+    
+    // TypeScript
+    'unknown', 'never', 'any', 'void', 'undefined', 'null'
+  ]),
 
+  // Common npm packages that might be used without explicit import in some setups
+  COMMON_LIBRARIES: new Set([
+    'express', 'mongoose', 'mongodb', 'axios', 'lodash', '_', 'moment',
+    'bcrypt', 'jwt', 'jsonwebtoken', 'dotenv', 'cors', 'helmet',
+    'validator', 'multer', 'sharp', 'joi', 'yup'
+  ]),
+
+  isBuiltInOrGlobal(variableName: string): boolean {
+    return this.BUILT_IN_GLOBALS.has(variableName) || 
+           this.COMMON_LIBRARIES.has(variableName);
+  },
+
+  // Check if a variable is a JSX prop or component prop
+  isJSXPropOrAttribute(variableName: string, code?: string): boolean {
+    // Common JSX props that don't need declaration
+    const jsxProps = /^(className|style|key|ref|id|src|alt|href|target|rel|type|value|placeholder|disabled|checked|selected|required|readOnly|autoFocus|autoComplete|maxLength|minLength|max|min|step|pattern|title|aria-|data-|role|tabIndex)$/i;
+    
+    if (jsxProps.test(variableName)) {
+      return true;
+    }
+
+    // Check if variable is used as a prop in JSX context
+    if (code) {
+      // Check if it's used in JSX attribute context: <Component prop={variable} />
+      const jsxAttributePattern = new RegExp(`<\\w+[^>]*\\s+\\w+\\s*=\\s*{${variableName}}`, 'g');
+      // Check if it's destructured from props: const { variable } = props or ({ variable })
+      const propsDestructurePattern = new RegExp(`(?:const|let|var)?\\s*{[^}]*${variableName}[^}]*}\\s*=\\s*props|\\({[^}]*${variableName}[^}]*}\\)\\s*=>`, 'g');
+      // Check if it's a component prop parameter
+      const componentPropPattern = new RegExp(`function\\s+\\w+\\s*\\([^)]*{[^}]*${variableName}[^}]*}[^)]*\\)|\\([^)]*{[^}]*${variableName}[^}]*}[^)]*\\)\\s*=>`, 'g');
+      
+      if (jsxAttributePattern.test(code) || propsDestructurePattern.test(code) || componentPropPattern.test(code)) {
+        return true;
+      }
+
+      // Check if variable is passed as children or prop value in JSX
+      const jsxChildrenPattern = new RegExp(`<[^>]*>\\s*{${variableName}}\\s*</`, 'g');
+      if (jsxChildrenPattern.test(code)) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  // Check if variable is declared anywhere in the code (including function params, destructuring, etc.)
+  isVariableDeclaredInCode(variableName: string, code?: string): boolean {
+    if (!code) return false;
+
+    const patterns = [
+      // Variable declarations
+      new RegExp(`(?:const|let|var)\\s+${variableName}\\s*[=;]`, 'g'),
+      // Function parameters
+      new RegExp(`function\\s+\\w+\\s*\\([^)]*\\b${variableName}\\b[^)]*\\)`, 'g'),
+      new RegExp(`\\([^)]*\\b${variableName}\\b[^)]*\\)\\s*=>`, 'g'),
+      // Destructuring
+      new RegExp(`{[^}]*\\b${variableName}\\b[^}]*}\\s*=`, 'g'),
+      new RegExp(`\\[[^\\]]*\\b${variableName}\\b[^\\]]*\\]\\s*=`, 'g'),
+      // Import statements
+      new RegExp(`import\\s+(?:{[^}]*\\b${variableName}\\b[^}]*}|${variableName})\\s+from`, 'g'),
+      new RegExp(`import\\s+\\*\\s+as\\s+${variableName}\\s+from`, 'g'),
+      // For loop declarations
+      new RegExp(`for\\s*\\([^)]*\\b${variableName}\\b[^)]*\\)`, 'g'),
+      // Catch block parameters
+      new RegExp(`catch\\s*\\(\\s*${variableName}\\s*\\)`, 'g'),
+      // Class properties
+      new RegExp(`class\\s+\\w+[^{]*{[^}]*\\b${variableName}\\b\\s*[=;]`, 'gs'),
+    ];
+
+    return patterns.some(pattern => pattern.test(code));
+  },
+
+  filterRealUndeclaredVariables(variables: any[], code?: string): any[] {
+    return variables.filter(v => {
+      const varName = v.name;
+      
+      // Filter out built-in globals
+      if (this.isBuiltInOrGlobal(varName)) {
+        return false;
+      }
+
+      // Filter out JSX props and attributes
+      if (this.isJSXPropOrAttribute(varName, code)) {
+        return false;
+      }
+
+      // Filter out variables that are actually declared in the code
+      if (this.isVariableDeclaredInCode(varName, code)) {
+        return false;
+      }
+
+      // Keep this as a real undeclared variable
+      return true;
+    });
+  },
+
+  async generateReview(request: ReviewRequest): Promise<ReviewResponse> {
+    // Run code tests to find actual errors
+    let testResults = null;
+    if (request.code) {
+      console.log('🧪 Running code tests...');
+      try {
+        testResults = await codeTestService.testCode(request.code, request.analysis.fileId);
+        console.log(`✅ Test complete: ${testResults.errorCount} errors found`);
+      } catch (error: any) {
+        console.error('⚠️ Code testing failed:', error.message);
+      }
+    }
+
+    const prompt = this.buildPrompt(request, testResults);
+    
     try {
       const llmResponse = await llmClient(prompt);
-      console.log(`🔍 [FEEDBACK SERVICE] LLM response received`);
-      
-      const review = this.parseReviewResponse(llmResponse, request);
-      console.log(`🔍 [FEEDBACK SERVICE] Review parsed successfully`);
-      console.log(`   - Issues: ${review.issues.length}`);
-      console.log(`   - Best practices: ${review.bestPractices.length}`);
-      
-      return review;
+      return this.parseResponse(llmResponse, request, testResults);
     } catch (error) {
-      console.error("❌ [FEEDBACK SERVICE] LLM call failed:", error);
-      console.log("🔍 [FEEDBACK SERVICE] Using fallback review...");
-      return this.createFallbackReview(request);
+      console.error("LLM call failed:", error);
+      return this.createFallbackReview(request, testResults);
     }
   },
-  
 
-  buildReviewPrompt(request: ReviewRequest): string {
-    const { analysis, prediction } = request;
+  buildPrompt(request: ReviewRequest, testResults?: any): string {
+    const { analysis, prediction, context } = request;
+    
+    const fileType = this.detectFileType(analysis.fileId);
+    const metrics = analysis.metrics;
+    
+    // Clean the filename for display
+    const displayFilename = analysis.fileId.replace(/^.*?localhost:\d+\//, '').replace(/^https?:\/\/[^\/]+\//, '');
 
-    const functions = analysis.functions ?? [];
-    const imports = analysis.imports ?? [];
-    const warnings = analysis.warnings ?? [];
-    const similarPatterns = analysis.similarPatterns ?? [];
+    return `You are an expert MERN stack code reviewer providing feedback for a pull request.
 
-    const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
+## PR CONTEXT
+File: ${displayFilename}
+${context?.title ? `PR Title: ${context.title}` : ''}
+${context?.author ? `Author: @${context.author}` : ''}
+${context?.prNumber ? `PR #${context.prNumber}` : ''}
 
-    const directDeps = analysis.dependencies?.directDependencies ?? [];
-    const reverseDeps = analysis.dependencies?.reverseDependencies ?? [];
-    const impactAffects = analysis.dependencies?.impactRadius?.affects ?? [];
-    const impactImpactedBy = analysis.dependencies?.impactRadius?.impactedBy ?? [];
+## FILE TYPE & STACK
+${fileType}
 
+## CODE METRICS
+- Lines: ${metrics.totalLines}
+- Functions: ${metrics.functionCount}
+- Complexity: ${metrics.cyclomaticComplexity}
+- Avg Function Length: ${metrics.avgFunctionLength?.toFixed(1)} lines
 
-    // Build comprehensive context from analysis
-    const asyncInfo = analysis.mernPatterns.hasAsyncFunctions 
-      ? `${analysis.mernPatterns.asyncFunctionCount} async functions detected`
-      : 'No async functions';
+## ML PREDICTION
+Status: ${prediction.will_fail ? '⚠️ LIKELY TO FAIL' : '✅ Likely to Pass'}
+Failure Probability: ${(prediction.failure_probability * 100).toFixed(0)}%
+Confidence: ${prediction.confidence}
+${prediction.reasoning ? `Analysis: ${prediction.reasoning}` : ''}
 
-    const expressInfo = analysis.mernPatterns.usesExpress
-      ? `Express: ${analysis.mernPatterns.usesRouterModules ? 'Uses Router modules' : 'Direct app usage'}, ${analysis.mernPatterns.hasCentralizedErrorMiddleware ? 'Has' : 'Missing'} centralized error middleware, ${analysis.mernPatterns.usesStatusCodesCorrectly ? 'Correct' : 'Incorrect'} status codes`
-      : 'Not using Express';
+## ACTUAL TEST RESULTS
+${testResults ? `
+✓ Code was tested for runtime errors:
+- Syntax Errors: ${testResults.syntaxError ? `❌ ${testResults.syntaxErrorMessage}` : '✓ None'}
+- Undeclared Variables: ${testResults.undeclaredVariables.length > 0 ? `❌ ${testResults.undeclaredVariables.map((v: any) => v.name).join(', ')}` : '✓ None'}
+- Missing Imports: ${testResults.missingImports.length > 0 ? `❌ ${testResults.missingImports.map((m: any) => m.name).join(', ')}` : '✓ None'}
+- Runtime Errors: ${testResults.runtimeErrors.length > 0 ? `❌ ${testResults.runtimeErrors.length} found` : '✓ None'}
+- Total Errors: ${testResults.errorCount}
+` : 'Test results not available - relying on static analysis'}
 
-    const dbInfo = analysis.mernPatterns.usesMongoose
-      ? `Mongoose: ${analysis.mernPatterns.hasSchemaValidation ? 'Has' : 'Missing'} schema validation, ${analysis.mernPatterns.hasIndexesDefined ? 'Has' : 'Missing'} indexes, ${analysis.mernPatterns.usesLeanQueries ? 'Uses' : 'Not using'} lean queries`
-      : analysis.mernPatterns.usesMongoDB
-      ? 'Using MongoDB (not Mongoose)'
-      : 'No database detected';
+## MERN PATTERNS DETECTED
+Backend/API:
+- Express Routes: ${analysis.mernPatterns.usesExpress ? '✓' : '✗'}
+- Mongoose Models: ${analysis.mernPatterns.usesMongoose ? '✓' : '✗'}
+- Async Functions: ${analysis.mernPatterns.asyncFunctionCount}
+- Error Handling: ${analysis.mernPatterns.hasErrorHandling ? '✓' : '✗ MISSING'}
+- Input Validation: ${analysis.mernPatterns.hasValidation ? '✓' : '✗ MISSING'}
+- Unhandled Promises: ${analysis.mernPatterns.hasUnhandledPromises ? '⚠️ YES' : '✓ No'}
 
-    const validationInfo = `Request body validation: ${analysis.mernPatterns.validatesRequestBody ? 'Yes' : 'No'}, Query params validation: ${analysis.mernPatterns.validatesQueryParams ? 'Yes' : 'No'}`;
+Architecture:
+- Circular Dependencies: ${analysis.dependencies.hasCycles ? '⚠️ YES' : '✓ No'}
 
-    const promiseInfo = analysis.mernPatterns.hasPromises
-      ? `Promises detected, ${analysis.mernPatterns.hasUnhandledPromises ? 'UNHANDLED promises found' : 'properly handled'}`
-      : 'No promises';
+## YOUR TASK
+Generate a comprehensive code review focusing on:
 
-    return `You are an expert code reviewer specializing in MERN stack applications. Analyze this code and provide specific, actionable review.
+1. **Critical Issues** (will break the code):
+   - Syntax errors, undefined variables, missing imports
+   - Unhandled promise rejections in async code
+   - Database connection errors
+   - Missing required middleware
+   - Security vulnerabilities (SQL injection, XSS, etc.)
 
-# FILE ANALYSIS
-File: ${analysis.fileId}
-Timestamp: ${analysis.timestamp}
+2. **MERN-Specific Best Practices**:
+   - Express: Proper middleware ordering, error handling, route structure
+   - MongoDB/Mongoose: Schema validation, connection pooling, query optimization
+   - React (if frontend): Component structure, state management, hooks usage
+   - Node.js: Async/await patterns, error propagation, environment variables
 
-## Code Metrics
-- Total Lines: ${analysis.metrics.totalLines}
-- Functions: ${analysis.metrics.functionCount}
-- Imports: ${analysis.metrics.importCount}
-- Avg Function Length: ${analysis.metrics.avgFunctionLength} lines
-- Cyclomatic Complexity: ${analysis.metrics.cyclomaticComplexity}
+3. **Code Quality**:
+   - Function complexity and readability
+   - Error handling patterns
+   - Input validation and sanitization
+   - Code organization and maintainability
 
-## Functions Found
-${(functions?.length ?? 0) > 0 ? functions.map((fn, i) => `${i + 1}. ${fn.substring(0, 100)}...`).join('\n') : 'No functions detected'}
+4. **Security**:
+   - Authentication/authorization issues
+   - Data validation and sanitization
+   - Sensitive data exposure
+   - CORS and rate limiting
 
-## Imports
-${(imports?.length ?? 0) > 0 ? imports.join('\n') : 'No imports'}
-
-## Dependencies
-- Direct Dependencies: ${directDeps.length} (${directDeps.slice(0, 5).join(', ')}${directDeps.length > 5 ? '...' : ''})
-- Reverse Dependencies: ${reverseDeps.length}
-- Has Circular Dependencies: ${analysis.dependencies.hasCycles ? 'YES ⚠️' : 'No'}
-- Impact Radius: Affects ${impactAffects.length} files, Impacted by ${impactImpactedBy.length} files
-
-## MERN Patterns Analysis
-
-### Error Handling
-- Has Error Handling: ${analysis.mernPatterns.hasErrorHandling ? 'Yes ✓' : 'No ✗'}
-- ${asyncInfo}
-- ${promiseInfo}
-
-### Express Patterns
-${expressInfo}
-
-### Database Patterns
-${dbInfo}
-
-### Validation
-- Has Validation Library: ${analysis.mernPatterns.hasValidation ? 'Yes ✓' : 'No ✗'}
-- ${validationInfo}
-
-### Detected Issues (${potentialIssues.length})
-${potentialIssues.length > 0 
-  ? potentialIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')
-  : 'No specific issues detected'}
-
-## Similar Code Patterns
-${(similarPatterns?.length ?? 0) > 0
-  ? similarPatterns.map(p => `- ${p.id} (similarity: ${Math.round(p.score * 100)}%)`).join('\n')
-  : 'No similar patterns found'}
-
-## ML Prediction
-- Will Fail: ${prediction.will_fail ? 'YES ⚠️' : 'No'}
-- Failure Probability: ${(prediction.failure_probability * 100).toFixed(1)}%
-- Confidence: ${prediction.confidence}
-${prediction.reasoning ? `- Reasoning: ${prediction.reasoning}` : '- No specific reasoning provided'}
-
-## Prediction Features
-- Module Type: ${analysis.predictionFeatures?.module_type ?? 'unknown'}
-- Developer: ${analysis.predictionFeatures?.developer ?? 'unknown'}
-- Lines Added: ${analysis.predictionFeatures?.lines_added ?? 0}
-- Lines Deleted: ${analysis.predictionFeatures?.lines_deleted ?? 0}
-- Files Changed: ${analysis.predictionFeatures?.files_changed ?? 0}
-- Avg Function Complexity: ${analysis.predictionFeatures?.avg_function_complexity ?? 0}
-- Contains Test Changes: ${analysis.predictionFeatures?.contains_test_changes ? 'Yes' : 'No'}
-- Previous Failure Rate: ${((analysis.predictionFeatures?.previous_failure_rate ?? 0) * 100).toFixed(1)}%
-
-## Analysis Warnings
-${(warnings?.length ?? 0) > 0 
-  ? warnings.map((w, i) => `${i + 1}. ${w}`).join('\n')
-  : 'No warnings'}
-
-# INSTRUCTIONS
-
-1. **Be Context-Aware**: Only mention issues and suggestions that are RELEVANT to the actual code:
-   - If there are NO FUNCTIONS (functionCount = 0), DO NOT mention error handling, input validation, async functions, or function-related improvements
-   - If there are NO IMPORTS, DO NOT mention dependency-related issues unless circular dependencies exist
-   - If this is a documentation/config file (README, .json, .md, etc.), focus on documentation quality, not code patterns
-   - Only suggest error handling if there are actual async functions that need it
-   - Only suggest input validation if there are functions that process user input (req.body, query params, etc.)
-
-2. **Be Specific**: Reference actual metrics, function names, import statements, and patterns from the analysis above. If a metric is 0 or empty, don't suggest improvements for it.
-
-3. **Critical Issues**: Only include issues that will cause runtime failures or security vulnerabilities AND are applicable to the actual code structure
-
-4. **Best Practices**: Focus ONLY on improvements based on actual code characteristics. If the code has no functions, don't suggest function-level improvements.
-
-5. **Summary Guidelines**: 
-   - If there are no functions: State that clearly and focus on what the file actually contains (imports, exports, configuration, etc.)
-   - If there are no imports: Don't mention dependency management
-   - If it's a simple file with no complexity: Don't mention complexity reduction
-   - Match the summary to what's actually in the code, not generic templates
-
-6. **File-Specific**: Always mention "${analysis.fileId}" when describing fixes
-
-7. **Severity Mapping**:
-   - critical: Security vulnerabilities, unhandled promises causing crashes, injection risks
-   - high: Missing error handling in async code (ONLY if async functions exist), missing validation on user input (ONLY if functions process input)
-   - medium: Missing status codes (ONLY if Express routes exist), console.log usage, moderate complexity (ONLY if complexity > 15)
-   - low: Code style issues, minor improvements
-
-# OUTPUT FORMAT
-
-Return ONLY valid JSON in this exact format:
-
+Return JSON with this structure:
 {
-  "summary": "Brief summary incorporating actual metrics and prediction results",
-  "riskLevel": "${this.determineRiskLevel(prediction.failure_probability, analysis.metrics.cyclomaticComplexity, analysis.mernPatterns)}",
-  "shouldMerge": ${this.shouldMerge(prediction.failure_probability, analysis.metrics.cyclomaticComplexity, analysis.mernPatterns)},
+  "summary": "Brief 2-3 sentence overview of the review",
+  "prComment": "Detailed PR comment in markdown format with sections for critical issues, suggestions, and praise",
+  "riskLevel": "critical|high|medium|low",
+  "shouldMerge": boolean,
+  "shouldRequestChanges": boolean,
   "issues": [
-    ${this.buildIssuesTemplate(analysis, prediction)}
-  ],
-  "bestPractices": [
-    ${this.buildBestPracticesTemplate(analysis)}
+    {
+      "severity": "critical|high|medium|low",
+      "category": "error_handling|security|performance|maintainability|best_practices|mern_specific",
+      "title": "Clear, actionable title",
+      "description": "Detailed explanation of the issue and its impact",
+      "suggestion": "Specific fix with code example if possible",
+      "lineNumber": optional_line_number,
+      "codeSnippet": "optional relevant code"
+    }
   ],
   "recommendations": [
-    ${this.buildRecommendationsTemplate(analysis, prediction)}
+    "Prioritized list of actionable recommendations"
   ],
   "codeQuality": {
-    "score": ${this.calculateQualityScore(analysis)},
-    "strengths": [${this.buildStrengthsTemplate(analysis)}],
-    "improvementAreas": [${this.buildImprovementsTemplate(analysis)}]
+    "score": 0-100,
+    "strengths": ["List actual strengths found in the code"],
+    "weaknesses": ["List areas for improvement"]
+  },
+  "mernSpecificFeedback": {
+    "backend": ["Express/Node.js specific feedback"],
+    "frontend": ["React specific feedback if applicable"],
+    "database": ["MongoDB/Mongoose specific feedback"],
+    "api": ["API design and REST principles feedback"]
   }
 }
 
-CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
+GUIDELINES:
+- Be constructive and specific, not vague
+- Provide code examples in suggestions when possible
+- Balance criticism with recognition of good practices
+- Prioritize issues by severity and impact
+- Focus on MERN stack best practices and conventions
+- Make the PR comment friendly and encouraging
+- If code is good, say so! Don't invent issues.
+
+Return only valid JSON.`;
   },
 
-  buildIssuesTemplate(analysis: CodeAnalysisResult, prediction: any): string {
-    const issues: string[] = [];
-
-    // Critical: Prediction failure
-    if (prediction.will_fail && prediction.reasoning) {
-      issues.push(`{
-        "severity": "critical",
-        "category": "predicted_failure",
-        "title": "ML Model Predicts Failure",
-        "description": "${prediction.reasoning.replace(/"/g, "'")}",
-        "location": "${analysis.fileId}",
-        "impact": "High risk of runtime failure or test failures based on code patterns",
-        "suggestion": "${this.buildIssueSuggestion(prediction.reasoning, analysis)}",
-        "resources": []
-      }`);
-    }
-
-    // Critical: Unhandled promises
-    if (analysis.mernPatterns.hasUnhandledPromises) {
-      issues.push(`{
-        "severity": "critical",
-        "category": "error_handling",
-        "title": "Unhandled Promise Rejections",
-        "description": "Found ${analysis.mernPatterns.asyncFunctionCount} async functions with promises that lack proper error handling",
-        "location": "${analysis.fileId}",
-        "impact": "Unhandled promise rejections will crash the Node.js process",
-        "suggestion": "Wrap all async operations in try-catch blocks or add .catch() handlers to promises in ${analysis.fileId}",
-        "resources": ["https://nodejs.org/api/process.html#event-unhandledrejection"]
-      }`);
-    }
-
-    // High: Missing error handling in async code
-    if (!analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
-      issues.push(`{
-        "severity": "high",
-        "category": "error_handling",
-        "title": "Missing Error Handling in Async Functions",
-        "description": "Detected ${analysis.mernPatterns.asyncFunctionCount} async functions without try-catch error handling",
-        "location": "${analysis.fileId}",
-        "impact": "Errors in async operations will not be caught, causing request failures",
-        "suggestion": "Add try-catch blocks to all async functions in ${analysis.fileId}",
-        "resources": ["https://expressjs.com/en/guide/error-handling.html"]
-      }`);
-    }
-
-    // High: Security issues from potential patterns
-    const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
-    const securityIssues = potentialIssues.filter(
-      issue => issue.toLowerCase().includes('injection') || issue.toLowerCase().includes('credentials')
-    );
+  detectFileType(filename: string): string {
+    // Clean up the filename - remove localhost paths and get just the filename
+    const cleanFilename = filename.replace(/^.*?localhost:\d+\//, '').replace(/^https?:\/\/[^\/]+\//, '');
     
-    securityIssues.forEach(issue => {
-      issues.push(`{
-        "severity": "high",
-        "category": "security",
-        "title": "${issue}",
-        "description": "${issue} detected in ${analysis.fileId}",
-        "location": "${analysis.fileId}",
-        "impact": "Security vulnerability that could lead to data breaches or unauthorized access",
-        "suggestion": "${this.buildSecuritySuggestion(issue, analysis.fileId)}",
-        "resources": ["https://owasp.org/"]
-      }`);
-    });
+    const patterns = {
+      'Express Route': /routes?\/|\.routes?\.|api\//i,
+      'Mongoose Model': /models?\/|\.model\./i,
+      'Express Middleware': /middleware\/|\.middleware\./i,
+      'Controller': /controllers?\/|\.controller\./i,
+      'Service': /services?\/|\.service\./i,
+      'React Component': /components?\/|\.component\.|\.jsx$|\.tsx$|\.js$|\.ts$/i,
+      'React Hook': /hooks?\/|use[A-Z].*\.(js|ts|jsx|tsx)$/,
+      'Redux Store': /store\/|\.store\.|\.reducer\.|\.action\./i,
+      'Utility': /utils?\/|helpers?\/|\.util\.|\.helper\./i,
+      'Configuration': /config\/|\.config\./i,
+      'Test File': /\.test\.|\.spec\.|__tests__/i
+    };
 
-    return issues.join(',\n    ');
+    for (const [type, pattern] of Object.entries(patterns)) {
+      if (pattern.test(cleanFilename)) {
+        return type;
+      }
+    }
+    
+    // Check file extension for MERN stack files
+    if (/\.(jsx|tsx)$/.test(cleanFilename)) {
+      return 'React Component (JSX/TSX)';
+    }
+    if (/\.(js|ts)$/.test(cleanFilename)) {
+      return 'JavaScript/TypeScript File';
+    }
+    
+    return 'MERN Stack File';
   },
 
-  buildBestPracticesTemplate(analysis: CodeAnalysisResult): string {
-    const practices: string[] = [];
-    const functions = analysis.functions ?? [];
-    const functionCount = analysis.metrics.functionCount ?? 0;
-    const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
-
-    // Only suggest validation if there are functions that might process input
-    const hasFunctionsThatProcessInput = functionCount > 0 && (
-      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
-      analysis.mernPatterns.usesExpress
-    );
-
-    // Validation - only if there are functions that process input
-    if (!analysis.mernPatterns.hasValidation && hasFunctionsThatProcessInput) {
-      practices.push(`{
-        "category": "Validation",
-        "priority": "high",
-        "title": "Implement Input Validation",
-        "currentState": "No validation library detected (Joi, Zod, express-validator)",
-        "recommendedState": "All user inputs should be validated before processing",
-        "benefits": "Prevents invalid data, reduces bugs, improves security",
-        "implementation": {
-          "steps": [
-            "Install validation library: npm install joi or zod",
-            "Create validation schemas for request bodies and query params",
-            "Add validation middleware to Express routes",
-            "Return 400 with clear error messages for validation failures"
-          ],
-          "codeExample": "const schema = Joi.object({ email: Joi.string().email().required() });\\nconst { error, value } = schema.validate(req.body);\\nif (error) return res.status(400).json({ error: error.message });"
-        },
-        "resources": ["https://joi.dev/", "https://github.com/colinhacks/zod"]
-      }`);
+  parseResponse(llmResponse: string, request: ReviewRequest, testResults?: any): ReviewResponse {
+    try {
+      const cleaned = llmResponse.replace(/```json\n?|\n?```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      
+      return {
+        ...parsed,
+        generatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error("Failed to parse LLM response:", error);
+      return this.createFallbackReview(request, testResults);
     }
-
-    // Specific validation issues - only if there are functions that use req.body
-    if (functionCount > 0 && !analysis.mernPatterns.validatesRequestBody && /req\.body/.test(functions.join(' '))) {
-      practices.push(`{
-        "category": "Validation",
-        "priority": "high",
-        "title": "Validate Request Body Parameters",
-        "currentState": "Using req.body without validation in ${analysis.fileId}",
-        "recommendedState": "All req.body fields should be validated",
-        "benefits": "Prevents type errors, invalid data, and security issues",
-        "implementation": {
-          "steps": [
-            "Identify all req.body access points in ${analysis.fileId}",
-            "Define validation schema for expected fields",
-            "Validate before any business logic"
-          ]
-        },
-        "resources": []
-      }`);
-    }
-
-    // Express patterns - only if Express is actually used
-    if (analysis.mernPatterns.usesExpress && functionCount > 0 && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
-      practices.push(`{
-        "category": "Express",
-        "priority": "medium",
-        "title": "Implement Centralized Error Handling Middleware",
-        "currentState": "No centralized error middleware detected",
-        "recommendedState": "Use Express error handling middleware for consistent error responses",
-        "benefits": "Consistent error format, easier debugging, cleaner code",
-        "implementation": {
-          "steps": [
-            "Create error handler middleware: app.use((err, req, res, next) => {...})",
-            "Place it after all routes",
-            "Pass errors to next(error) from route handlers",
-            "Format errors consistently"
-          ],
-          "codeExample": "app.use((err, req, res, next) => {\\n  console.error(err.stack);\\n  res.status(err.status || 500).json({\\n    error: err.message,\\n    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })\\n  });\\n});"
-        },
-        "resources": ["https://expressjs.com/en/guide/error-handling.html"]
-      }`);
-    }
-
-    // Status codes - only if Express routes exist
-    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.usesStatusCodesCorrectly) {
-      practices.push(`{
-        "category": "Express",
-        "priority": "medium",
-        "title": "Use Explicit HTTP Status Codes",
-        "currentState": "Some responses in ${analysis.fileId} lack explicit status codes",
-        "recommendedState": "All responses should include appropriate HTTP status codes",
-        "benefits": "Clear API contracts, better client error handling",
-        "implementation": {
-          "steps": [
-            "Review all res.json() and res.send() calls",
-            "Add res.status(code) before sending response",
-            "Use standard codes: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Error)"
-          ]
-        },
-        "resources": []
-      }`);
-    }
-
-    // Mongoose patterns
-    if (analysis.mernPatterns.usesMongoose && !analysis.mernPatterns.hasSchemaValidation) {
-      practices.push(`{
-        "category": "Database",
-        "priority": "medium",
-        "title": "Add Mongoose Schema Validation",
-        "currentState": "Mongoose schemas in ${analysis.fileId} lack validation rules",
-        "recommendedState": "All schemas should have appropriate validators",
-        "benefits": "Data integrity, prevents invalid documents, clear error messages",
-        "implementation": {
-          "steps": [
-            "Add required, min, max, enum validators to schema fields",
-            "Use custom validators for complex rules",
-            "Enable schema validation on updates"
-          ],
-          "codeExample": "const userSchema = new Schema({\\n  email: { type: String, required: true, unique: true, lowercase: true },\\n  age: { type: Number, min: 18, max: 120 }\\n});"
-        },
-        "resources": ["https://mongoosejs.com/docs/validation.html"]
-      }`);
-    }
-
-    if (analysis.mernPatterns.usesMongoose && !analysis.mernPatterns.hasIndexesDefined) {
-      practices.push(`{
-        "category": "Database",
-        "priority": "medium",
-        "title": "Define Database Indexes",
-        "currentState": "No indexes detected in Mongoose schemas",
-        "recommendedState": "Add indexes on frequently queried fields",
-        "benefits": "Significantly improves query performance",
-        "implementation": {
-          "steps": [
-            "Identify frequently queried fields",
-            "Add index: { field: 1 } in schema",
-            "Use compound indexes for multi-field queries",
-            "Monitor index usage with explain()"
-          ]
-        },
-        "resources": []
-      }`);
-    }
-
-    // Complexity - only if there are functions with complexity
-    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
-      practices.push(`{
-        "category": "Code Quality",
-        "priority": "${analysis.metrics.cyclomaticComplexity > 20 ? 'high' : 'medium'}",
-        "title": "Reduce Cyclomatic Complexity",
-        "currentState": "Complexity of ${analysis.metrics.cyclomaticComplexity} exceeds recommended threshold of 10-15",
-        "recommendedState": "Break down complex functions into smaller, focused units",
-        "benefits": "Easier testing, better maintainability, fewer bugs",
-        "implementation": {
-          "steps": [
-            "Extract complex conditionals into separate functions",
-            "Use early returns to reduce nesting",
-            "Apply Single Responsibility Principle",
-            "Consider Strategy or Command patterns for complex logic"
-          ]
-        },
-        "resources": []
-      }`);
-    }
-
-    // Circular dependencies
-    if (analysis.dependencies.hasCycles) {
-      practices.push(`{
-        "category": "Architecture",
-        "priority": "medium",
-        "title": "Resolve Circular Dependencies",
-        "currentState": "Circular dependencies detected in module imports",
-        "recommendedState": "Clean, acyclic dependency graph",
-        "benefits": "Prevents import order issues, better tree-shaking",
-        "implementation": {
-          "steps": [
-            "Extract shared code into separate modules",
-            "Use dependency injection to break cycles",
-            "Restructure into layered architecture"
-          ]
-        },
-        "resources": []
-      }`);
-    }
-
-    // Console.log usage
-    if (potentialIssues.some(i => i.includes('console.log'))) {
-      practices.push(`{
-        "category": "Logging",
-        "priority": "low",
-        "title": "Replace console.log with Proper Logger",
-        "currentState": "Using console.log in ${analysis.fileId}",
-        "recommendedState": "Use structured logging library (Winston, Pino)",
-        "benefits": "Better log management, log levels, production-ready",
-        "implementation": {
-          "steps": [
-            "Install Winston or Pino",
-            "Create logger configuration",
-            "Replace console.log with logger.info/error/warn"
-          ]
-        },
-        "resources": []
-      }`);
-    }
-
-    return practices.join(',\n    ');
   },
 
+  createFallbackReview(request: ReviewRequest, testResults?: any): ReviewResponse {
+    const { analysis, prediction, context } = request;
+    const issues: ReviewIssue[] = [];
+    const mernFeedback: any = { backend: [], frontend: [], database: [], api: [] };
 
-  buildRecommendationsTemplate(analysis: CodeAnalysisResult, prediction: any): string {
-    const recs: string[] = [];
-    const functionCount = analysis.metrics.functionCount ?? 0;
-    const functions = analysis.functions ?? [];
-
-    if (prediction.will_fail) {
-      recs.push(`"⚠️ CRITICAL: ML predicts failure - ${prediction.reasoning || 'review code carefully'}"`);
+    // Critical: Syntax errors
+    if (testResults?.syntaxError) {
+      issues.push({
+        severity: "critical",
+        category: "error_handling",
+        title: "Syntax Error - Code Will Not Execute",
+        description: `Syntax error detected: ${testResults.syntaxErrorMessage}. The code cannot run with this error.`,
+        suggestion: "Fix the syntax error. Check for missing brackets, semicolons, or typos in keywords.",
+        codeSnippet: testResults.syntaxErrorMessage
+      });
     }
 
-    const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
-    if (potentialIssues.length > 0) {
-      recs.push(`"🎯 PRIORITY: Address ${potentialIssues.length} detected issue${potentialIssues.length !== 1 ? 's' : ''}"`);
+    // Critical: Undeclared variables (filtered for built-ins)
+    if (testResults?.undeclaredVariables?.length > 0) {
+      const realUndeclared = this.filterRealUndeclaredVariables(testResults.undeclaredVariables, request.code);
+      realUndeclared.forEach((v: any) => {
+        issues.push({
+          severity: "critical",
+          category: "error_handling",
+          title: `Undeclared Variable: ${v.name}`,
+          description: `Variable "${v.name}" is used without being declared. This will throw a ReferenceError at runtime.`,
+          suggestion: `Add declaration: \`const ${v.name} = ...\` or import it from the appropriate module.`,
+          lineNumber: v.line
+        });
+      });
     }
 
-    // Only suggest error handling if there are async functions
-    if (functionCount > 0 && !analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
-      recs.push(`"🎯 PRIORITY: Add error handling to ${analysis.mernPatterns.asyncFunctionCount} async function${analysis.mernPatterns.asyncFunctionCount !== 1 ? 's' : ''}"`);
+    // Critical: Missing imports
+    if (testResults?.missingImports?.length > 0) {
+      testResults.missingImports.forEach((m: any) => {
+        issues.push({
+          severity: "critical",
+          category: "error_handling",
+          title: `Missing Import: ${m.name}`,
+          description: `"${m.name}" is used ${m.usedAt} but not imported. This will cause a ReferenceError.`,
+          suggestion: `Add import statement: \`import ${m.name} from '...';\` or \`const ${m.name} = require('...');\``,
+        });
+      });
     }
 
-    // Only suggest validation if there are functions that process input
-    const hasFunctionsThatProcessInput = functionCount > 0 && (
-      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
-      analysis.mernPatterns.usesExpress
-    );
-    if (hasFunctionsThatProcessInput && !analysis.mernPatterns.hasValidation) {
-      recs.push(`"🎯 PRIORITY: Implement input validation before deployment"`);
+    // Critical: Unhandled promise rejections
+    if (analysis.mernPatterns.hasUnhandledPromises) {
+      issues.push({
+        severity: "critical",
+        category: "error_handling",
+        title: "Unhandled Promise Rejections",
+        description: `Found ${analysis.mernPatterns.asyncFunctionCount} async functions with unhandled promise rejections. These can crash the Node.js process.`,
+        suggestion: `Wrap async operations in try-catch blocks:\n\`\`\`javascript\ntry {\n  const result = await asyncOperation();\n} catch (error) {\n  console.error('Error:', error);\n  res.status(500).json({ error: 'Internal server error' });\n}\n\`\`\``,
+      });
+      mernFeedback.backend.push("Add proper error handling to all async/await operations");
     }
 
-    // Only suggest complexity reduction if there are functions with high complexity
-    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
-      recs.push(`"💡 SUGGESTION: Refactor to reduce complexity from ${analysis.metrics.cyclomaticComplexity} to <15"`);
+    // High: Missing error handling in Express routes
+    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasErrorHandling) {
+      issues.push({
+        severity: "high",
+        category: "mern_specific",
+        title: "Missing Error Handling in Express Routes",
+        description: "Express routes should have proper error handling to prevent application crashes and provide meaningful error responses.",
+        suggestion: `Add error handling middleware:\n\`\`\`javascript\napp.use((err, req, res, next) => {\n  console.error(err.stack);\n  res.status(500).json({ error: 'Something went wrong!' });\n});\n\`\`\``
+      });
+      mernFeedback.backend.push("Implement centralized error handling middleware");
+      mernFeedback.api.push("Add consistent error response format across all endpoints");
     }
 
-    // Only suggest test coverage if there's actual code to test
-    if (functionCount > 0) {
-      recs.push(`"✅ Ensure test coverage for ${analysis.fileId} before merging"`);
+    // High: Missing input validation
+    if ((analysis.mernPatterns.usesExpress || analysis.mernPatterns.usesMongoose) && !analysis.mernPatterns.hasValidation) {
+      issues.push({
+        severity: "high",
+        category: "security",
+        title: "Missing Input Validation",
+        description: "API endpoints should validate input data to prevent injection attacks and data integrity issues.",
+        suggestion: `Use validation libraries like Joi or express-validator:\n\`\`\`javascript\nconst { body, validationResult } = require('express-validator');\n\nrouter.post('/users',\n  body('email').isEmail(),\n  body('password').isLength({ min: 8 }),\n  (req, res) => {\n    const errors = validationResult(req);\n    if (!errors.isEmpty()) {\n      return res.status(400).json({ errors: errors.array() });\n    }\n    // Process valid data\n  }\n);\n\`\`\``
+      });
+      mernFeedback.backend.push("Add input validation to protect against malformed requests");
+      mernFeedback.api.push("Validate all request parameters, body, and query strings");
     }
 
-    return recs.join(',\n    ');
+    // Medium: High complexity
+    if (analysis.metrics.cyclomaticComplexity > 15) {
+      issues.push({
+        severity: "medium",
+        category: "maintainability",
+        title: `High Cyclomatic Complexity (${analysis.metrics.cyclomaticComplexity})`,
+        description: "High complexity makes code harder to test and maintain. Consider breaking down complex functions.",
+        suggestion: "Refactor complex functions into smaller, single-purpose functions. Aim for complexity < 10 per function."
+      });
+    }
+
+    // Medium: Mongoose-specific issues
+    if (analysis.mernPatterns.usesMongoose) {
+      mernFeedback.database.push("Ensure Mongoose schemas have proper validation rules");
+      mernFeedback.database.push("Use indexes on frequently queried fields for better performance");
+      mernFeedback.database.push("Handle MongoDB connection errors gracefully");
+    }
+
+    // Calculate risk level and scores
+    const riskLevel = this.calculateRiskLevel(prediction.failure_probability, issues);
+    const score = this.calculateScore(analysis, issues);
+    const shouldRequestChanges = issues.some(i => i.severity === "critical" || i.severity === "high");
+
+    // Build PR comment
+    const prComment = this.buildPRComment(analysis, issues, score, prediction, context);
+
+    // Build recommendations
+    const recommendations = this.buildRecommendations(issues, analysis, testResults);
+
+    const summary = this.buildSummary(analysis, issues, prediction, testResults);
+
+    return {
+      summary,
+      prComment,
+      riskLevel,
+      shouldMerge: !shouldRequestChanges && riskLevel !== "critical",
+      shouldRequestChanges,
+      issues,
+      recommendations,
+      codeQuality: {
+        score,
+        strengths: this.identifyStrengths(analysis),
+        weaknesses: issues.filter(i => i.severity === "high" || i.severity === "critical").map(i => i.title)
+      },
+      mernSpecificFeedback: mernFeedback,
+      generatedAt: new Date().toISOString()
+    };
   },
 
-  buildStrengthsTemplate(analysis: CodeAnalysisResult): string {
-    const strengths: string[] = [];
+  buildPRComment(
+    analysis: CodeAnalysisResult,
+    issues: ReviewIssue[],
+    score: number,
+    prediction: any,
+    context?: any
+  ): string {
+    // Clean the filename for display
+    const displayFilename = analysis.fileId.replace(/^.*?localhost:\d+\//, '').replace(/^https?:\/\/[^\/]+\//, '');
+    
+    const critical = issues.filter(i => i.severity === "critical");
+    const high = issues.filter(i => i.severity === "high");
+    const medium = issues.filter(i => i.severity === "medium");
+    const low = issues.filter(i => i.severity === "low");
 
-    if (analysis.mernPatterns.hasErrorHandling) {
-      strengths.push(`"Implements error handling with try-catch in async functions"`);
+    let comment = `## 🔍 Code Review for \`${displayFilename}\`\n\n`;
+    
+    // Status indicator
+    if (critical.length > 0) {
+      comment += `### ❌ Changes Requested\n\n`;
+    } else if (high.length > 0) {
+      comment += `### ⚠️ Review Required\n\n`;
+    } else {
+      comment += `### ✅ Looks Good!\n\n`;
     }
 
-    if (analysis.mernPatterns.hasValidation) {
-      strengths.push(`"Uses input validation library (Joi/Zod/express-validator)"`);
+    // Quality score
+    const scoreEmoji = score >= 80 ? "🟢" : score >= 60 ? "🟡" : "🔴";
+    comment += `**Code Quality Score:** ${scoreEmoji} ${score}/100\n\n`;
+
+    // ML Prediction
+    comment += `**AI Analysis:** ${prediction.will_fail ? '⚠️ Potential Issues Detected' : '✓ No Major Issues'} (${(prediction.failure_probability * 100).toFixed(0)}% risk)\n\n`;
+
+    // Critical issues section
+    if (critical.length > 0) {
+      comment += `### 🚨 Critical Issues (Must Fix)\n\n`;
+      critical.forEach((issue, i) => {
+        comment += `${i + 1}. **${issue.title}**\n`;
+        comment += `   - ${issue.description}\n`;
+        comment += `   - 💡 **Fix:** ${issue.suggestion}\n\n`;
+      });
     }
 
-    if (analysis.metrics.cyclomaticComplexity < 10) {
-      strengths.push(`"Low complexity (${analysis.metrics.cyclomaticComplexity}) - maintainable code"`);
+    // High priority issues
+    if (high.length > 0) {
+      comment += `### ⚠️ High Priority\n\n`;
+      high.forEach((issue, i) => {
+        comment += `${i + 1}. **${issue.title}**\n`;
+        comment += `   - ${issue.description}\n`;
+        comment += `   - 💡 **Suggestion:** ${issue.suggestion}\n\n`;
+      });
     }
 
-    if (!analysis.dependencies.hasCycles) {
-      strengths.push(`"Clean dependency structure with no circular imports"`);
+    // Medium/Low issues
+    if (medium.length > 0 || low.length > 0) {
+      comment += `### 📝 Suggestions for Improvement\n\n`;
+      [...medium, ...low].forEach((issue, i) => {
+        comment += `${i + 1}. **${issue.title}** (${issue.severity})\n`;
+        comment += `   - ${issue.description}\n\n`;
+      });
     }
 
-    if (analysis.mernPatterns.usesExpress && analysis.mernPatterns.usesRouterModules) {
-      strengths.push(`"Well-organized Express routes using Router modules"`);
+    // Strengths section
+    const strengths = this.identifyStrengths(analysis);
+    if (strengths.length > 0) {
+      comment += `### 💪 What's Working Well\n\n`;
+      strengths.forEach(strength => {
+        comment += `- ✓ ${strength}\n`;
+      });
+      comment += `\n`;
     }
 
-    if (analysis.mernPatterns.usesMongoose && analysis.mernPatterns.hasSchemaValidation) {
-      strengths.push(`"Mongoose schemas include validation rules"`);
+    // Footer
+    if (critical.length === 0 && high.length === 0) {
+      comment += `---\n\n*Nice work! The code looks solid. Feel free to merge when ready.* 🚀\n`;
+    } else {
+      comment += `---\n\n*Please address the issues above before merging. Happy to review again!* 👍\n`;
     }
 
-    if (analysis.mernPatterns.usesStatusCodesCorrectly) {
-      strengths.push(`"Proper HTTP status code usage in responses"`);
-    }
-
-    if (strengths.length === 0) {
-      strengths.push(`"Follows basic MERN stack conventions"`);
-    }
-
-    return strengths.join(',\n      ');
+    return comment;
   },
 
-  buildImprovementsTemplate(analysis: CodeAnalysisResult): string {
-    const improvements: string[] = [];
-    const functionCount = analysis.metrics.functionCount ?? 0;
-    const functions = analysis.functions ?? [];
+  buildSummary(
+    analysis: CodeAnalysisResult,
+    issues: ReviewIssue[],
+    prediction: any,
+    testResults?: any
+  ): string {
+    // Clean the filename for display
+    const displayFilename = analysis.fileId.replace(/^.*?localhost:\d+\//, '').replace(/^https?:\/\/[^\/]+\//, '');
+    
+    const critical = issues.filter(i => i.severity === "critical").length;
+    const high = issues.filter(i => i.severity === "high").length;
+    const errorCount = testResults?.errorCount || 0;
 
-    // Only suggest error handling if there are async functions
-    if (functionCount > 0 && !analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
-      improvements.push(`"Error Handling: Add try-catch to ${analysis.mernPatterns.asyncFunctionCount} async functions"`);
+    if (critical > 0) {
+      return `${displayFilename}: Found ${critical} critical error(s) that will prevent the code from running. ${errorCount > 0 ? `${errorCount} runtime errors detected in testing.` : ''} Please fix before merging.`;
+    } else if (high > 0) {
+      return `${displayFilename}: Found ${high} high-priority issue(s) that should be addressed. Code may work but has potential problems. Review recommended before merging.`;
+    } else if (issues.length > 0) {
+      return `${displayFilename}: Found ${issues.length} minor issue(s). Code is functional but could be improved. Consider addressing suggestions for better code quality.`;
+    } else {
+      return `${displayFilename}: Code looks good! No critical issues detected. ${prediction.will_fail ? 'ML detected potential edge cases, but static analysis found no problems.' : 'All checks passed.'} Ready to merge.`;
     }
-
-    // Only suggest validation if there are functions that process input
-    const hasFunctionsThatProcessInput = functionCount > 0 && (
-      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
-      analysis.mernPatterns.usesExpress
-    );
-    if (hasFunctionsThatProcessInput && !analysis.mernPatterns.hasValidation) {
-      improvements.push(`"Validation: Implement input validation with Joi or Zod"`);
-    }
-
-    // Only suggest complexity reduction if there are functions with high complexity
-    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
-      improvements.push(`"Complexity: Reduce from ${analysis.metrics.cyclomaticComplexity} to <15"`);
-    }
-
-    if (analysis.dependencies.hasCycles) {
-      improvements.push(`"Architecture: Resolve circular dependencies"`);
-    }
-
-    // Only suggest Express improvements if Express is used and there are functions
-    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
-      improvements.push(`"Express: Add centralized error handling middleware"`);
-    }
-
-    if (analysis.mernPatterns.usesMongoose && !analysis.mernPatterns.hasIndexesDefined) {
-      improvements.push(`"Database: Define indexes on frequently queried fields"`);
-    }
-
-    // Only suggest testing if there's actual code to test
-    if (improvements.length === 0 && functionCount > 0) {
-      improvements.push(`"Testing: Add more test coverage"`);
-    }
-
-    return improvements.join(',\n      ');
   },
 
-  determineRiskLevel(
+  calculateRiskLevel(
     failureProbability: number,
-    complexity: number,
-    mernPatterns: any
+    issues: ReviewIssue[]
   ): "critical" | "high" | "medium" | "low" {
-    // Critical: High failure probability OR unhandled promises
-    if (failureProbability > 0.7 || mernPatterns.hasUnhandledPromises) {
-      return "critical";
-    }
-    const potentialIssues = mernPatterns?.potentialIssues ?? [];
-    // High: Medium-high failure probability OR missing critical patterns
-    if (
-      failureProbability > 0.5 ||
-      (!mernPatterns.hasErrorHandling && mernPatterns.hasAsyncFunctions) ||
-      potentialIssues.some((i: string) =>
-        i.toLowerCase().includes('injection') || i.toLowerCase().includes('credentials')
-      )
-    ) {
-      return "high";
-    }
+    const hasCritical = issues.some(i => i.severity === "critical");
+    const hasHigh = issues.some(i => i.severity === "high");
+    const criticalCount = issues.filter(i => i.severity === "critical").length;
+    const highCount = issues.filter(i => i.severity === "high").length;
 
-    // Medium: Moderate failure probability OR high complexity OR missing validation
-    if (
-      failureProbability > 0.3 ||
-      complexity > 15 ||
-      !mernPatterns.hasValidation
-    ) {
-      return "medium";
-    }
-
+    if (hasCritical && criticalCount > 2) return "critical";
+    if (failureProbability > 0.8 || hasCritical) return "critical";
+    if (failureProbability > 0.6 || hasHigh) return "high";
+    if (failureProbability > 0.4 || issues.length > 3) return "medium";
     return "low";
   },
 
-  shouldMerge(
-    failureProbability: number,
-    complexity: number,
-    mernPatterns: any
-  ): boolean {
-    const riskLevel = this.determineRiskLevel(failureProbability, complexity, mernPatterns);
-    return riskLevel === "low" || riskLevel === "medium";
-  },
-
-  calculateQualityScore(analysis: CodeAnalysisResult): number {
+  calculateScore(analysis: CodeAnalysisResult, issues: ReviewIssue[]): number {
     let score = 100;
+    
+    // Deduct for issues
+    issues.forEach(issue => {
+      switch (issue.severity) {
+        case "critical": score -= 25; break;
+        case "high": score -= 15; break;
+        case "medium": score -= 8; break;
+        case "low": score -= 3; break;
+      }
+    });
 
-    // Complexity penalty
-    if (analysis.metrics.cyclomaticComplexity > 20) score -= 30;
-    else if (analysis.metrics.cyclomaticComplexity > 15) score -= 20;
-    else if (analysis.metrics.cyclomaticComplexity > 10) score -= 10;
-
-    // Error handling penalty
-    if (!analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions) {
-      score -= 25;
-    }
-    if (analysis.mernPatterns.hasUnhandledPromises) score -= 30;
-
-    // Validation penalty
-    if (!analysis.mernPatterns.hasValidation) score -= 15;
-    if (!analysis.mernPatterns.validatesRequestBody) score -= 10;
-
-    // Pattern issues penalty
-    const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
-    const securityIssues = potentialIssues.filter(
-      issue => issue.toLowerCase().includes('injection') || issue.toLowerCase().includes('credentials')
-    );
-    score -= (potentialIssues.length - securityIssues.length) * 5;
-
-    // Dependency issues
-    if (analysis.dependencies.hasCycles) score -= 15;
-
-    // Express patterns bonus
-    if (analysis.mernPatterns.usesExpress) {
-      if (analysis.mernPatterns.usesRouterModules) score += 5;
-      if (analysis.mernPatterns.hasCentralizedErrorMiddleware) score += 5;
-      if (analysis.mernPatterns.usesStatusCodesCorrectly) score += 3;
-    }
-
-    // Database patterns bonus
-    if (analysis.mernPatterns.usesMongoose) {
-      if (analysis.mernPatterns.hasSchemaValidation) score += 5;
-      if (analysis.mernPatterns.hasIndexesDefined) score += 3;
+    // Bonus for good practices
+    if (analysis.mernPatterns.hasErrorHandling) score += 10;
+    if (analysis.mernPatterns.hasValidation) score += 10;
+    if (analysis.metrics.cyclomaticComplexity < 10) score += 5;
+    if (!analysis.dependencies.hasCycles) score += 5;
+    if (analysis.mernPatterns.asyncFunctionCount > 0 && !analysis.mernPatterns.hasUnhandledPromises) {
+      score += 10; // Bonus for proper async handling
     }
 
     return Math.max(0, Math.min(100, score));
   },
 
-  parseReviewResponse(llmResponse: string, request: ReviewRequest): ReviewResponse {
-    console.log('🔍 [FEEDBACK SERVICE] Parsing LLM response...');
-
-    try {
-      const cleaned = llmResponse.replace(/```json\n?|\n?```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-
-      console.log('🔍 [FEEDBACK SERVICE] JSON parsed successfully');
-
-      return {
-        summary: parsed.summary,
-        riskLevel: parsed.riskLevel,
-        shouldMerge: parsed.shouldMerge,
-        issues: parsed.issues || [],
-        bestPractices: parsed.bestPractices || [],
-        recommendations: parsed.recommendations || [],
-        codeQuality: parsed.codeQuality || {
-          score: 50,
-          strengths: [],
-          improvementAreas: []
-        },
-        generatedAt: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error("❌ [FEEDBACK SERVICE] Failed to parse LLM response:", error);
-      console.log('🔍 [FEEDBACK SERVICE] Using fallback review...');
-      return this.createFallbackReview(request);
-    }
-  },
-
-  createFallbackReview(request: ReviewRequest): ReviewResponse {
-    console.log('🔍 [FEEDBACK SERVICE] ===== CREATING FALLBACK FEEDBACK =====');
-
-    const { analysis, prediction } = request;
-    const issues: ReviewIssue[] = [];
-    const bestPractices: BestPractice[] = [];
-
-    // Check if this is a documentation/config file (low-risk changes)
-    const isDocFile = /\.(md|txt|json|ya?ml|gitignore|env\.example)$/i.test(analysis.fileId);
-    const isReadme = /readme/i.test(analysis.fileId);
-    const isConfigFile = /package\.json|tsconfig|\.config\./i.test(analysis.fileId);
-
-    // Critical issues from prediction
-    if (prediction.will_fail && prediction.reasoning) {
-      issues.push({
-        severity: "critical",
-        category: "predicted_failure",
-        title: "ML Model Predicts Failure",
-        description: `ML analysis indicates potential failure: ${prediction.reasoning}`,
-        location: analysis.fileId,
-        impact: "High risk of runtime failure or test failures",
-        suggestion: this.buildIssueSuggestion(prediction.reasoning, analysis)
-      });
-    }
-
-    // Critical: Unhandled promises
-    if (analysis.mernPatterns.hasUnhandledPromises) {
-      issues.push({
-        severity: "critical",
-        category: "error_handling",
-        title: "Unhandled Promise Rejections Detected",
-        description: `Found ${analysis.mernPatterns.asyncFunctionCount} async functions with promises that lack proper error handling in ${analysis.fileId}`,
-        location: analysis.fileId,
-        impact: "Unhandled promise rejections will crash the Node.js process in production",
-        suggestion: `Add try-catch blocks or .catch() handlers to all promise-based operations in ${analysis.fileId}`,
-        resources: ["https://nodejs.org/api/process.html#event-unhandledrejection"]
-      });
-    }
-
-    // High: Missing error handling
-    if (!analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
-      issues.push({
-        severity: "high",
-        category: "error_handling",
-        title: "Missing Error Handling in Async Functions",
-        description: `${analysis.mernPatterns.asyncFunctionCount} async functions in ${analysis.fileId} lack try-catch error handling`,
-        location: analysis.fileId,
-        impact: "Errors in async operations will not be caught, causing request failures and poor user experience",
-        suggestion: `Wrap all async operations in ${analysis.fileId} with try-catch blocks and return appropriate error responses`,
-        resources: ["https://expressjs.com/en/guide/error-handling.html"]
-      });
-    }
-
-    // Security issues
-    const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
-    const securityIssues = potentialIssues.filter(
-      issue => issue.toLowerCase().includes('injection') || issue.toLowerCase().includes('credentials')
-    );
-
-    securityIssues.forEach(issue => {
-      issues.push({
-        severity: "high",
-        category: "security",
-        title: issue,
-        description: `Security vulnerability detected in ${analysis.fileId}: ${issue}`,
-        location: analysis.fileId,
-        impact: "Could lead to data breaches, unauthorized access, or system compromise",
-        suggestion: this.buildSecuritySuggestion(issue, analysis.fileId),
-        resources: ["https://owasp.org/www-community/"]
-      });
-    });
-
-    // Build best practices from analysis
-    bestPractices.push(...this.generateBestPractices(analysis));
-
-    const riskLevel = this.determineRiskLevel(
-      prediction.failure_probability,
-      analysis.metrics.cyclomaticComplexity,
-      analysis.mernPatterns
-    );
-
-    // Build appropriate summary based on file type
-    let summary: string;
-    if (isReadme) {
-      summary = `README update for ${analysis.fileId} looks good. Documentation changes are low-risk and help improve project clarity. ${issues.length > 0 ? `Note: ${issues.length} suggestion${issues.length !== 1 ? 's' : ''} for improvement.` : 'No issues detected.'}`;
-    } else if (isConfigFile) {
-      summary = `Configuration file ${analysis.fileId} updated. ${issues.length > 0 ? `⚠️ ${issues.length} issue${issues.length !== 1 ? 's' : ''} detected - review carefully as config changes can affect runtime behavior.` : 'Changes look safe. Verify configuration values in your environment.'}`;
-    } else if (isDocFile) {
-      summary = `Documentation/config file ${analysis.fileId} updated. Low-risk changes. ${issues.length > 0 ? `${issues.length} improvement${issues.length !== 1 ? 's' : ''} suggested.` : 'No issues found.'}`;
-    } else {
-      // Build context-aware summary based on what's actually in the code
-      const functionCount = analysis.metrics.functionCount ?? 0;
-      const hasFunctions = functionCount > 0;
-      const hasImports = (analysis.imports?.length ?? 0) > 0;
-      
-      let summaryParts: string[] = [];
-      
-      // File description
-      if (!hasFunctions) {
-        summaryParts.push(`The ${analysis.fileId} file is a simple ${analysis.metrics.totalLines}-line module with no functions`);
-        if (!hasImports) {
-          summaryParts.push(`no imports`);
-        } else {
-          summaryParts.push(`${analysis.metrics.importCount} import${analysis.metrics.importCount !== 1 ? 's' : ''}`);
-        }
-        summaryParts.push(`and no dependencies`);
-      } else {
-        summaryParts.push(`Analysis of ${analysis.fileId} (${analysis.metrics.totalLines} lines, ${functionCount} function${functionCount !== 1 ? 's' : ''}`);
-        if (analysis.metrics.cyclomaticComplexity > 0) {
-          summaryParts.push(`complexity: ${analysis.metrics.cyclomaticComplexity}`);
-        }
-        summaryParts.push(`)`);
-      }
-      
-      // Prediction
-      summaryParts.push(`${prediction.will_fail ? '⚠️ ML predicts FAILURE' : '✓ ML predicts SUCCESS'} (${(prediction.failure_probability * 100).toFixed(1)}% failure probability)`);
-      
-      // Only mention issues/improvements if they're relevant
-      if (issues.length > 0) {
-        summaryParts.push(`${issues.length} issue${issues.length !== 1 ? 's' : ''} found`);
-      }
-      if (bestPractices.length > 0) {
-        summaryParts.push(`${bestPractices.length} improvement${bestPractices.length !== 1 ? 's' : ''} recommended`);
-      }
-      
-      // Quality score
-      summaryParts.push(`Quality score: ${this.calculateQualityScore(analysis)}/100`);
-      
-      summary = summaryParts.join('. ') + '.';
-    }
-
-    console.log('🔍 [FEEDBACK SERVICE] Fallback complete - Issues:', issues.length, 'Best Practices:', bestPractices.length);
-
-    return {
-      summary,
-      riskLevel,
-      shouldMerge: this.shouldMerge(
-        prediction.failure_probability,
-        analysis.metrics.cyclomaticComplexity,
-        analysis.mernPatterns
-      ),
-      issues,
-      bestPractices,
-      recommendations: this.generateRecommendations(
-          analysis,
-          prediction,
-          issues,
-          bestPractices,
-          request.context
-        ),
-
-      codeQuality: {
-        score: this.calculateQualityScore(analysis),
-        strengths: this.identifyStrengths(analysis),
-        improvementAreas: this.identifyImprovements(analysis, bestPractices)
-      },
-      generatedAt: new Date().toISOString()
-    };
-  },
-
-  buildIssueSuggestion(reasoning: string, analysis: CodeAnalysisResult): string {
-    const fileHint = ` in ${analysis.fileId}`;
-    const sanitized = reasoning.replace(/"/g, "'");
-
-    // Extract specific identifiers
-    const identifier = this.extractIdentifier(sanitized) || 
-                      this.extractIdentifier(analysis.mernPatterns.potentialIssues.join(" "));
-
-    // Pattern matching for specific issues
-    const undefinedMatch = sanitized.match(/undefined (?:variable|property|function)\s+([A-Za-z0-9_.]+)/i);
-    if (undefinedMatch?.[1]) {
-      return `Define or import "${undefinedMatch[1]}"${fileHint}, or add checks to handle undefined values before use`;
-    }
-
-    const missingMatch = sanitized.match(/missing (?:regex|pattern|field|property|validation)\s+([A-Za-z0-9_.]+)/i);
-    if (missingMatch?.[1]) {
-      return `Add or correct the "${missingMatch[1]}" pattern${fileHint} to ensure code executes safely`;
-    }
-
-    const logicMatch = sanitized.match(/(?:logic|condition)\s+issue\s+with\s+([A-Za-z0-9_.]+)/i);
-    if (logicMatch?.[1]) {
-      return `Review and fix the logic around "${logicMatch[1]}"${fileHint} to match intended behavior`;
-    }
-
-    if (identifier) {
-      return `Focus on "${identifier}"${fileHint}: ensure it is properly defined, validated, and used according to its intended purpose`;
-    }
-
-    return `Address the issue${fileHint}: ${sanitized}. Review the code carefully and add appropriate error handling, validation, or logic fixes`;
-  },
-
-  extractIdentifier(text: string): string | undefined {
-    if (!text) return undefined;
-
-    // Check for backtick-wrapped identifiers
-    const tickMatch = text.match(/`([A-Za-z0-9_.-]+)`/);
-    if (tickMatch?.[1]) return tickMatch[1];
-
-    // Check for quoted identifiers
-    const quoteMatch = text.match(/["']([A-Za-z0-9_.-]+)["']/);
-    if (quoteMatch?.[1]) return quoteMatch[1];
-
-    // Check for identifiers after keywords
-    const keywordMatch = text.match(/\b(?:variable|property|field|param|function|method)\s+([A-Za-z0-9_.-]+)/i);
-    if (keywordMatch?.[1]) return keywordMatch[1];
-
-    return undefined;
-  },
-
-  buildSecuritySuggestion(issue: string, fileId: string): string {
-    const lowerIssue = issue.toLowerCase();
-
-    if (lowerIssue.includes('injection')) {
-      return `Use parameterized queries or ORM methods in ${fileId}. Never concatenate user input directly into database queries. If using MongoDB, use Mongoose methods; if using SQL, use prepared statements with parameter binding`;
-    }
-
-    if (lowerIssue.includes('credentials') || lowerIssue.includes('hardcoded')) {
-      return `Move all sensitive credentials from ${fileId} to environment variables. Use a .env file with libraries like dotenv, and never commit sensitive data to version control. Add .env to .gitignore`;
-    }
-
-    return `Review and fix the security issue in ${fileId}: ${issue}. Consult OWASP guidelines for best practices`;
-  },
-
-  generateBestPractices(analysis: CodeAnalysisResult): BestPractice[] {
-    const practices: BestPractice[] = [];
-
-    // Validation
-    if (!analysis.mernPatterns.hasValidation) {
-      practices.push({
-        category: "Validation",
-        priority: "high",
-        title: "Implement Input Validation",
-        currentState: "No validation library detected (Joi, Zod, express-validator)",
-        recommendedState: "All user inputs should be validated before processing",
-        benefits: "Prevents invalid data, reduces bugs, improves security, provides clear error messages",
-        implementation: {
-          steps: [
-            "Choose and install a validation library: npm install joi or zod",
-            "Create validation schemas for all request bodies and query parameters",
-            "Add validation middleware to Express routes before business logic",
-            "Return 400 Bad Request with descriptive error messages on validation failures"
-          ],
-          codeExample: `const Joi = require('joi');
-
-const userSchema = Joi.object({
-  email: Joi.string().email().required(),
-  password: Joi.string().min(8).required(),
-  age: Joi.number().integer().min(18)
-});
-
-app.post('/users', async (req, res) => {
-  try {
-    const validated = await userSchema.validateAsync(req.body);
-    // Process validated data
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});`
-        },
-        resources: ["https://joi.dev/api/", "https://github.com/colinhacks/zod"]
-      });
-    }
-
-    // Request body validation
-    if (!analysis.mernPatterns.validatesRequestBody && /req\.body/.test(analysis.functions.join(' '))) {
-      practices.push({
-        category: "Validation",
-        priority: "high",
-        title: "Validate Request Body Parameters",
-        currentState: `Using req.body without validation in ${analysis.fileId}`,
-        recommendedState: "All req.body fields should be validated for type, format, and constraints",
-        benefits: "Prevents type errors, invalid data reaching business logic, and potential security vulnerabilities",
-        implementation: {
-          steps: [
-            `Identify all req.body access points in ${analysis.fileId}`,
-            "Define expected field types and constraints",
-            "Validate before any database operations or business logic"
-          ]
-        },
-        resources: []
-      });
-    }
-
-    // Express error middleware - only if Express is used and there are functions
-    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
-      practices.push({
-        category: "Express",
-        priority: "medium",
-        title: "Implement Centralized Error Handling Middleware",
-        currentState: "No centralized error middleware detected",
-        recommendedState: "Use Express error handling middleware for consistent error responses",
-        benefits: "Consistent error format, easier debugging, prevents error details leaking in production",
-        implementation: {
-          steps: [
-            "Create error handler middleware with 4 parameters: (err, req, res, next)",
-            "Place it after all routes in your Express app",
-            "Pass errors using next(error) from route handlers",
-            "Format errors consistently and log them appropriately"
-          ],
-          codeExample: `app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: {
-      message: err.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    }
-  });
-});`
-        },
-        resources: ["https://expressjs.com/en/guide/error-handling.html"]
-      });
-    }
-
-    // Status codes - only if Express routes exist
-    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.usesStatusCodesCorrectly) {
-      practices.push({
-        category: "Express",
-        priority: "medium",
-        title: "Use Explicit HTTP Status Codes",
-        currentState: `Some responses in ${analysis.fileId} lack explicit status codes`,
-        recommendedState: "All API responses should include appropriate HTTP status codes",
-        benefits: "Clear API contracts, better client-side error handling, REST compliance",
-        implementation: {
-          steps: [
-            "Review all res.json() and res.send() calls",
-            "Add res.status(code) before sending response",
-            "Use: 200 (OK), 201 (Created), 400 (Bad Request), 404 (Not Found), 500 (Server Error)"
-          ]
-        },
-        resources: ["https://developer.mozilla.org/en-US/docs/Web/HTTP/Status"]
-      });
-    }
-
-    // Mongoose schema validation
-    if (analysis.mernPatterns.usesMongoose && !analysis.mernPatterns.hasSchemaValidation) {
-      practices.push({
-        category: "Database",
-        priority: "medium",
-        title: "Add Mongoose Schema Validation",
-        currentState: `Mongoose schemas in ${analysis.fileId} lack validation rules`,
-        recommendedState: "All schemas should have appropriate validators for data integrity",
-        benefits: "Prevents invalid documents, ensures data quality, provides clear error messages",
-        implementation: {
-          steps: [
-            "Add required, min, max, enum validators to schema fields",
-            "Use custom validators for complex business rules",
-            "Enable validation on updates with runValidators: true"
-          ],
-          codeExample: `const userSchema = new Schema({
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    validate: {
-      validator: (v) => /^\\S+@\\S+\\.\\S+$/.test(v),
-      message: 'Invalid email format'
-    }
-  },
-  age: {
-    type: Number,
-    min: [18, 'Must be at least 18'],
-    max: 120
-  }
-});`
-        },
-        resources: ["https://mongoosejs.com/docs/validation.html"]
-      });
-    }
-
-    // Database indexes
-    if (analysis.mernPatterns.usesMongoose && !analysis.mernPatterns.hasIndexesDefined) {
-      practices.push({
-        category: "Database",
-        priority: "medium",
-        title: "Define Database Indexes",
-        currentState: "No indexes detected in Mongoose schemas",
-        recommendedState: "Add indexes on frequently queried fields for performance",
-        benefits: "Dramatically improves query performance, reduces database load",
-        implementation: {
-          steps: [
-            "Identify fields used in find(), findOne(), or where() clauses",
-            "Add single-field indexes: { field: 1 } in schema",
-            "Use compound indexes for multi-field queries",
-            "Monitor index usage with .explain()"
-          ]
-        },
-        resources: ["https://mongoosejs.com/docs/guide.html#indexes"]
-      });
-    }
-
-    // Complexity - only if there are functions with complexity
-    const functionCount = analysis.metrics.functionCount ?? 0;
-    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
-      practices.push({
-        category: "Code Quality",
-        priority: analysis.metrics.cyclomaticComplexity > 20 ? "high" : "medium",
-        title: "Reduce Cyclomatic Complexity",
-        currentState: `Complexity of ${analysis.metrics.cyclomaticComplexity} exceeds recommended threshold (10-15)`,
-        recommendedState: "Break down complex functions into smaller, focused units",
-        benefits: "Easier to test, understand, and maintain; fewer bugs; better reusability",
-        implementation: {
-          steps: [
-            "Identify functions with high complexity",
-            "Extract complex conditionals into separate, named functions",
-            "Use early returns to reduce nesting depth",
-            "Apply Single Responsibility Principle",
-            "Consider using design patterns (Strategy, Command) for complex logic"
-          ]
-        },
-        resources: ["https://en.wikipedia.org/wiki/Cyclomatic_complexity"]
-      });
-    }
-
-    // Circular dependencies
-    if (analysis.dependencies.hasCycles) {
-      practices.push({
-        category: "Architecture",
-        priority: "medium",
-        title: "Resolve Circular Dependencies",
-        currentState: "Circular dependencies detected in module imports",
-        recommendedState: "Clean, acyclic dependency graph with clear module hierarchy",
-        benefits: "Prevents import order issues, enables better tree-shaking, improves code organization",
-        implementation: {
-          steps: [
-            "Identify circular dependencies using dependency analysis",
-            "Extract shared code into separate utility modules",
-            "Use dependency injection to break cycles",
-            "Restructure modules into layered architecture (controllers -> services -> data)"
-          ]
-        },
-        resources: ["https://nodejs.org/api/modules.html#modules_cycles"]
-      });
-    }
-
-    // Logging
-    if (analysis.mernPatterns.potentialIssues.some(i => i.includes('console.log'))) {
-      practices.push({
-        category: "Logging",
-        priority: "low",
-        title: "Replace console.log with Proper Logger",
-        currentState: `Using console.log for logging in ${analysis.fileId}`,
-        recommendedState: "Use structured logging library (Winston, Pino, or Bunyan)",
-        benefits: "Log levels, structured output, better performance, production-ready logging",
-        implementation: {
-          steps: [
-            "Install Winston: npm install winston",
-            "Create logger configuration with transports",
-            "Replace all console.log with logger.info/error/warn",
-            "Configure different log levels for environments"
-          ]
-        },
-        resources: ["https://github.com/winstonjs/winston"]
-      });
-    }
-
-    return practices;
-  },
-
-  generateRecommendations(
-  analysis: CodeAnalysisResult,
-  prediction: any,
-  issues: ReviewIssue[],
-  bestPractices: BestPractice[],
-  context?: ReviewRequest["context"]
-): string[] {
-
+  buildRecommendations(
+    issues: ReviewIssue[],
+    analysis: CodeAnalysisResult,
+    testResults?: any
+  ): string[] {
     const recs: string[] = [];
-
-    // Check if this is a documentation/config file
-    const isDocFile = /\.(md|txt|json|ya?ml|gitignore|env\.example)$/i.test(analysis.fileId);
-    const isReadme = /readme/i.test(analysis.fileId);
-    const isConfigFile = /package\.json|tsconfig|\.config\./i.test(analysis.fileId);
-
-    // Special handling for documentation files
-    if (isReadme && issues.length === 0 && !prediction.will_fail) {
-      recs.push('✅ README documentation update - changes look good and help improve project clarity');
-      recs.push('📝 Consider keeping documentation in sync with code changes');
-      return recs;
-    }
-
-    if (isDocFile && issues.length === 0 && !prediction.will_fail) {
-      recs.push('✅ Documentation/configuration file update approved - low risk changes');
-      if (isConfigFile) {
-        recs.push('⚙️ Verify configuration values work correctly in all environments');
-      }
-      return recs;
-    }
-
-    // Critical prediction
-    if (prediction.will_fail) {
-      recs.push(
-        `⚠️ CRITICAL: ML model predicts failure with ${(prediction.failure_probability * 100).toFixed(1)}% probability - ${prediction.reasoning || 'review code carefully before merging'}`
-      );
-    }
-
-    // Critical issues
-    const criticalIssues = issues.filter(i => i.severity === "critical");
-    if (criticalIssues.length > 0) {
-      recs.push(
-        `⚠️ CRITICAL: ${criticalIssues.length} critical issue${criticalIssues.length !== 1 ? 's' : ''} must be fixed before deployment`
-      );
-    }
-
-    // High severity issues
-    const highIssues = issues.filter(i => i.severity === "high");
-    if (highIssues.length > 0) {
-      recs.push(
-        `🎯 PRIORITY: ${highIssues.length} high-severity issue${highIssues.length !== 1 ? 's' : ''} detected - address before merging`
-      );
-    }
-
-    // High priority best practices
-    const highPriorityBPs = bestPractices.filter(bp => bp.priority === "high");
-    if (highPriorityBPs.length > 0) {
-      recs.push(
-        `🎯 PRIORITY: ${highPriorityBPs.length} important improvement${highPriorityBPs.length !== 1 ? 's' : ''} recommended: ${highPriorityBPs.map(bp => bp.category).join(', ')}`
-      );
-    }
-
-    // Specific patterns - only if relevant
-    const functionCount = analysis.metrics.functionCount ?? 0;
-    const functions = analysis.functions ?? [];
     
-    if (functionCount > 0 && !analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
-      recs.push(
-        `🎯 PRIORITY: Add error handling to ${analysis.mernPatterns.asyncFunctionCount} async function${analysis.mernPatterns.asyncFunctionCount !== 1 ? 's' : ''} in ${analysis.fileId}`
-      );
+    const critical = issues.filter(i => i.severity === "critical");
+    const high = issues.filter(i => i.severity === "high");
+    const hasSecurityIssues = issues.some(i => i.category === "security");
+    const hasMernIssues = issues.some(i => i.category === "mern_specific");
+
+    // Prioritized recommendations
+    if (critical.length > 0) {
+      recs.push(`🚨 URGENT: Fix ${critical.length} critical error(s) - code will fail without these fixes`);
     }
 
-    // Only suggest validation if there are functions that process input
-    const hasFunctionsThatProcessInput = functionCount > 0 && (
-      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
-      analysis.mernPatterns.usesExpress
-    );
-    if (hasFunctionsThatProcessInput && !analysis.mernPatterns.hasValidation) {
-      recs.push(
-        `🎯 PRIORITY: Implement input validation in ${analysis.fileId} before deployment`
-      );
+    if (high.length > 0) {
+      recs.push(`⚠️ HIGH PRIORITY: Address ${high.length} high-priority issue(s) before merging`);
     }
 
-    // Medium priority suggestions - only if there are functions with high complexity
-    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
-      recs.push(
-        `💡 SUGGESTION: Refactor ${analysis.fileId} to reduce complexity from ${analysis.metrics.cyclomaticComplexity} to <15`
-      );
+    if (hasSecurityIssues) {
+      recs.push(`🔒 SECURITY: Review and fix security vulnerabilities`);
     }
 
-    // Testing reminder
-    if (!isDocFile) {
-      recs.push(
-        `✅ Ensure adequate test coverage for ${analysis.fileId} before merging to ${context?.branch || 'main'}`
-      );
+    if (analysis.mernPatterns.hasUnhandledPromises) {
+      recs.push(`Add try-catch blocks to all async/await operations to prevent crashes`);
     }
 
-    // Positive review
-    if (issues.length === 0 && !prediction.will_fail) {
-      if (isDocFile) {
-        recs.push('✅ Documentation changes approved - proceed with merge');
-      } else {
-        recs.push('✅ Code quality looks good - proceed with standard review process');
+    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasErrorHandling) {
+      recs.push(`Implement centralized error handling middleware for Express routes`);
+    }
+
+    if (!analysis.mernPatterns.hasValidation) {
+      recs.push(`Add input validation using express-validator or Joi to protect API endpoints`);
+    }
+
+    if (analysis.metrics.cyclomaticComplexity > 15) {
+      recs.push(`Refactor complex functions (complexity: ${analysis.metrics.cyclomaticComplexity}) into smaller, testable units`);
+    }
+
+    if (hasMernIssues) {
+      recs.push(`Review MERN stack best practices and apply recommended patterns`);
+    }
+
+    // If no issues, provide general best practices
+    if (recs.length === 0) {
+      recs.push(`✅ Code is in good shape! Consider adding unit tests to maintain quality`);
+      if (analysis.mernPatterns.usesMongoose) {
+        recs.push(`Consider adding indexes to Mongoose schemas for frequently queried fields`);
+      }
+      if (analysis.mernPatterns.usesExpress) {
+        recs.push(`Consider adding rate limiting and request validation middleware`);
       }
     }
 
@@ -1330,55 +723,43 @@ app.post('/users', async (req, res) => {
 
   identifyStrengths(analysis: CodeAnalysisResult): string[] {
     const strengths: string[] = [];
-
+    
     if (analysis.mernPatterns.hasErrorHandling) {
-      strengths.push(`Implements error handling with try-catch in ${analysis.mernPatterns.asyncFunctionCount} async functions`);
+      strengths.push("Implements proper error handling");
     }
-
+    
     if (analysis.mernPatterns.hasValidation) {
-      strengths.push("Uses input validation library (Joi/Zod/express-validator)");
+      strengths.push("Uses input validation");
     }
-
+    
     if (analysis.metrics.cyclomaticComplexity < 10) {
-      strengths.push(`Low cyclomatic complexity (${analysis.metrics.cyclomaticComplexity}) indicates maintainable code`);
+      strengths.push(`Low complexity (${analysis.metrics.cyclomaticComplexity}) - easy to understand and maintain`);
     }
-
+    
     if (!analysis.dependencies.hasCycles) {
-      strengths.push("Clean dependency structure with no circular imports");
+      strengths.push("Clean dependency structure with no circular references");
     }
-
-    if (analysis.mernPatterns.usesExpress && analysis.mernPatterns.usesRouterModules) {
-      strengths.push("Well-organized Express routes using Router modules");
+    
+    if (analysis.mernPatterns.asyncFunctionCount > 0 && !analysis.mernPatterns.hasUnhandledPromises) {
+      strengths.push("Proper async/await error handling");
     }
-
-    if (analysis.mernPatterns.usesExpress && analysis.mernPatterns.hasCentralizedErrorMiddleware) {
-      strengths.push("Implements centralized error handling middleware");
+    
+    if (analysis.mernPatterns.usesExpress) {
+      strengths.push("Following Express.js conventions");
     }
-
-    if (analysis.mernPatterns.usesStatusCodesCorrectly) {
-      strengths.push("Proper HTTP status code usage in API responses");
+    
+    if (analysis.mernPatterns.usesMongoose) {
+      strengths.push("Using Mongoose for database operations");
     }
-
-    if (analysis.mernPatterns.usesMongoose && analysis.mernPatterns.hasSchemaValidation) {
-      strengths.push("Mongoose schemas include validation rules");
+    
+    if (analysis.metrics.avgFunctionLength && analysis.metrics.avgFunctionLength < 30) {
+      strengths.push("Functions are concise and focused");
     }
-
-    if (analysis.mernPatterns.usesMongoose && analysis.mernPatterns.hasIndexesDefined) {
-      strengths.push("Database indexes defined for performance optimization");
-    }
-
-    if (analysis.mernPatterns.validatesRequestBody) {
-      strengths.push("Validates request body parameters before processing");
-    }
-
+    
     if (strengths.length === 0) {
-      strengths.push("Follows basic MERN stack conventions");
+      strengths.push("Code follows basic JavaScript conventions");
     }
 
     return strengths;
-  },
-
-  identifyImprovements(analysis: CodeAnalysisResult, bestPractices: BestPractice[]): string[] {
-    return bestPractices.map(bp => `${bp.category}: ${bp.title}`);
   }
 };

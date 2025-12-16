@@ -107,49 +107,51 @@ export const analyzePullRequest = async (req: Request, res: Response) => {
 export const submitPullRequest = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const prId = Number(req.params.prId);
+    if (Number.isNaN(prId)) return res.status(400).json({ error: "Invalid PR ID" });
 
-    if (Number.isNaN(prId)) {
-      return res.status(400).json({ error: "Invalid pull request ID" });
-    }
-
-    console.log(`📝 Submitting PR ${prId} for analysis...`);
-
-    // Step 1: Build the payload
+    // 1. Build PR payload (diffs/metadata)
     const payload = await userService.buildPullRequestPayload(prId);
-    console.log('✅ Payload built successfully');
 
-    // Step 2: Get PR details
+    // 2. Fetch PR with Repository and its Files
     const pr = await prisma.pullRequest.findUnique({
       where: { id: prId },
       include: {
-        repository: { include: { userProfile: true } }
+        repository: { 
+          include: { 
+            userProfile: true,
+            files: true // <--- Fetch the stored repo files
+          } 
+        }
       }
     });
 
-    if (!pr) {
-      return res.status(404).json({ error: "Pull request not found" });
-    }
+    if (!pr) return res.status(404).json({ error: "Pull request not found" });
 
     const repo = pr.repository;
     const userProfile = repo.userProfile;
 
-    // Step 3: Prepare orchestrator payload
+    // 3. Prepare Orchestrator Payload with Repository Context
     const orchestratorPayload = {
       ...payload,
       repositoryFullName: `${userProfile.githubUsername}/${repo.name}`,
       prId: pr.number,
-      prUrl: `https://github.com/${userProfile.githubUsername}/${repo.name}/pull/${pr.number}`
+      prUrl: `https://github.com/${userProfile.githubUsername}/${repo.name}/pull/${pr.number}`,
+      // ADDING REPO CONTEXT HERE:
+      repoContext: repo.files.map(f => ({
+        path: f.path,
+        content: f.content 
+      }))
     };
 
-    console.log('📤 Sending to orchestrator...');
+    console.log(`📤 Sending PR #${pr.number} with ${repo.files.length} context files...`);
 
-    // Step 4: Call orchestrator
+    // 4. Call orchestrator
     const response = await axios.post(
       `${process.env.ORCHESTRATOR_URL}/api/analyze-pr`,
       orchestratorPayload,
       { 
         headers: { Authorization: req.headers.authorization },
-        timeout: 120000  // 2 minute timeout
+        timeout: 180000 // Increased to 3 mins as payload is now larger
       }
     );
 
@@ -226,25 +228,11 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
 
     console.log('🎉 PR submission complete!');
 
-    return res.json({
-      success: true,
-      stored: true,
-      analysis: result
-    });
+    return res.json({ success: true, analysis: response.data.data });
 
   } catch (err: any) {
-    console.error("❌ SUBMIT ERROR:", err.message || err);
-    
-    // Log more details for debugging
-    if (err.response) {
-      console.error("Response status:", err.response.status);
-      console.error("Response data:", err.response.data);
-    }
-    
-    return res.status(500).json({ 
-      error: "Failed to submit PR to orchestrator",
-      details: err.message || "Unknown error"
-    });
+    console.error("❌ SUBMIT ERROR:", err.message);
+    return res.status(500).json({ error: "Failed to submit PR", details: err.message });
   }
 };
 

@@ -6,6 +6,7 @@ export const orchestratorController = {
     try {
       const { 
         code, 
+        repoContext,
         fileId, 
         developer,
         linesAdded,
@@ -32,6 +33,8 @@ export const orchestratorController = {
       const result = await orchestratorService.analyzePR(
         {
           code,
+          repoContext: repoContext || [],
+          repositoryFullName: repositoryFullName,
           fileId: fileId || `file_${Date.now()}`,
           developer: developer || req.user.email || "unknown",
           linesAdded: linesAdded || 0,

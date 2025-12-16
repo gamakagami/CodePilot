@@ -186,80 +186,115 @@ export const syncRepositories = async (userId: string) => {
 };
 
 export const syncSingleRepository = async (userId: string, repoName: string) => {
-  const profile = await prisma.userProfile.findUnique({ where: { userId } });
-  if (!profile?.githubToken) throw new Error("GitHub token missing");
-
-  if (!profile.githubUsername) {
-    throw new Error("GitHub username missing");
-  }
-
-  const repoResponse = await axios.get(
-    `https://api.github.com/repos/${profile.githubUsername}/${repoName}`,
-    {
-      headers: {
-        Authorization: `Bearer ${profile.githubToken}`,
-        Accept: "application/vnd.github+json"
-      }
-    }
-  );
-
-  const repo = repoResponse.data;
-
-  const createdRepo = await prisma.repository.upsert({
-    where: {
-      name_userProfileId: {
-        name: repo.name,
-        userProfileId: profile.id
-      }
-    },
-    update: {
-      lastAnalyzed: new Date()
-    },
-    create: {
-      name: repo.name,
-      userProfileId: profile.id
-    }
+  const profile = await prisma.userProfile.findUnique({ 
+    where: { userId },
+    include: { repositories: { where: { name: repoName }, include: { _count: { select: { files: true } } } } }
   });
 
+  if (!profile?.githubToken || !profile.githubUsername) {
+    throw new Error("GitHub credentials missing");
+  }
+
+  // 1. Upsert the Repository record
+  const createdRepo = await prisma.repository.upsert({
+    where: { name_userProfileId: { name: repoName, userProfileId: profile.id } },
+    update: { lastAnalyzed: new Date() },
+    create: { name: repoName, userProfileId: profile.id }
+  });
+
+  // 2. Initial Content Sync (Only runs if the repo has 0 files)
+  const existingFilesCount = profile.repositories[0]?._count.files || 0;
+  
+  if (existingFilesCount === 0) {
+    // Get the default branch (usually main/master)
+    const repoInfo = await axios.get(`https://api.github.com/repos/${profile.githubUsername}/${repoName}`, {
+      headers: { Authorization: `Bearer ${profile.githubToken}` }
+    });
+    const defaultBranch = repoInfo.data.default_branch;
+
+    // Fetch the full recursive tree
+    const treeResponse = await axios.get(
+      `https://api.github.com/repos/${profile.githubUsername}/${repoName}/git/trees/${defaultBranch}?recursive=1`,
+      { headers: { Authorization: `Bearer ${profile.githubToken}` } }
+    );
+
+    const files = treeResponse.data.tree.filter((item: any) => item.type === "blob");
+
+    // Loop through files and fetch content
+    for (const file of files) {
+      const contentResponse = await axios.get(file.url, {
+        headers: { Authorization: `Bearer ${profile.githubToken}` }
+      });
+      
+      // GitHub blobs are Base64 encoded
+      const content = Buffer.from(contentResponse.data.content, 'base64').toString('utf-8');
+
+      await prisma.file.upsert({
+        where: { path_repositoryId: { path: file.path, repositoryId: createdRepo.id } },
+        update: { content },
+        create: { path: file.path, content, repositoryId: createdRepo.id }
+      });
+    }
+  }
+
+  // 3. PR Sync (Always runs to keep PRs updated)
   const prsResponse = await axios.get(
-    `https://api.github.com/repos/${repo.owner.login}/${repo.name}/pulls`,
+    `https://api.github.com/repos/${profile.githubUsername}/${repoName}/pulls`,
     {
-      params: {
-        state: "all",
-        per_page: 100
-      },
-      headers: {
-        Authorization: `Bearer ${profile.githubToken}`,
-        Accept: "application/vnd.github+json"
-      }
+      params: { state: "all", per_page: 100 },
+      headers: { Authorization: `Bearer ${profile.githubToken}` }
     }
   );
 
-  const prs = prsResponse.data;
-
-  for (const pr of prs) {
+  for (const pr of prsResponse.data) {
     await prisma.pullRequest.upsert({
-      where: {
-        number_repositoryId: {
-          number: pr.number,
-          repositoryId: createdRepo.id
-        }
-      },
-      update: {
-        title: pr.title,
-        author: pr.user.login,
-        status: pr.state,
-        repoName: repo.name
-      },
-      create: {
-        number: pr.number,
-        title: pr.title,
-        author: pr.user.login,
-        status: pr.state,
+      where: { number_repositoryId: { number: pr.number, repositoryId: createdRepo.id } },
+      update: { title: pr.title, status: pr.state },
+      create: { 
+        number: pr.number, 
+        title: pr.title, 
+        author: pr.user.login, 
+        status: pr.state, 
         repositoryId: createdRepo.id,
-        repoName: repo.name
+        repoName: repoName
       }
     });
+  }
+
+  // 4. Store repository context in Neo4j for better analysis
+  try {
+    const repositoryFullName = `${profile.githubUsername}/${repoName}`;
+    
+    // Get all files from the repository
+    const repoFiles = await prisma.file.findMany({
+      where: { repositoryId: createdRepo.id },
+      select: { path: true, content: true }
+    });
+
+    if (repoFiles.length > 0) {
+      console.log(`📦 Storing ${repoFiles.length} files in Neo4j for ${repositoryFullName}...`);
+      
+      // Call code-analysis-service to store context in Neo4j
+      const codeAnalysisUrl = process.env.CODE_ANALYSIS_SERVICE_URL || 'http://localhost:5003';
+      await axios.post(
+        `${codeAnalysisUrl}/analysis/store-repo-context`,
+        {
+          repositoryFullName,
+          files: repoFiles.map(f => ({
+            path: f.path,
+            content: f.content || ''
+          }))
+        },
+        { timeout: 120000 } // 2 minutes timeout for large repositories
+      );
+      
+      console.log(`✅ Successfully stored repository context in Neo4j`);
+    } else {
+      console.log(`⚠️ No files to store in Neo4j for ${repositoryFullName}`);
+    }
+  } catch (error: any) {
+    // Don't fail the sync if Neo4j storage fails, just log it
+    console.error(`⚠️ Failed to store repository context in Neo4j:`, error.message);
   }
 
   return getProfile(userId);

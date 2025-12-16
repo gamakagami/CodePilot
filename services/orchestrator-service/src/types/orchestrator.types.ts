@@ -8,6 +8,8 @@ export interface AnalyzePRRequest {
   codeCoverageChange?: number;
   buildDuration?: number;
   previousFailureRate?: number;
+  repoContext?: Array<{ path: string; content: string }>;
+  repositoryFullName?: string;
 }
 
 export interface OrchestratorResponse {

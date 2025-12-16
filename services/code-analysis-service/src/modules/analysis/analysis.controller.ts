@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import analysisService from "./analysis.service";
+import { GraphService } from "../graph/graph.service";
 
 class AnalysisController {
   analyze = async (req: Request, res: Response) => {
@@ -13,7 +14,9 @@ class AnalysisController {
         filesChanged,
         codeCoverageChange,
         buildDuration,
-        previousFailureRate
+        previousFailureRate,
+        repoContext,
+        repositoryFullName
       } = req.body;
 
       if (!code) {
@@ -31,7 +34,9 @@ class AnalysisController {
         filesChanged,
         codeCoverageChange,
         buildDuration,
-        previousFailureRate
+        previousFailureRate,
+        repoContext,
+        repositoryFullName
       });
 
       // Handle case where analysis returns null (parsing failed)
@@ -438,6 +443,41 @@ class AnalysisController {
 
     return "Review and address this issue to improve code quality";
   }
+
+  /**
+   * Store repository context in Neo4j
+   */
+  storeRepositoryContext = async (req: Request, res: Response) => {
+    try {
+      const { repositoryFullName, files } = req.body;
+
+      if (!repositoryFullName) {
+        return res.status(400).json({
+          error: "Missing 'repositoryFullName' in request body"
+        });
+      }
+
+      if (!files || !Array.isArray(files)) {
+        return res.status(400).json({
+          error: "Missing 'files' array in request body"
+        });
+      }
+
+      const graphService = new GraphService();
+      const result = await graphService.storeRepositoryContext(repositoryFullName, files);
+
+      res.status(200).json({
+        success: true,
+        ...result
+      });
+    } catch (error: any) {
+      console.error("Store repository context error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message || "Failed to store repository context"
+      });
+    }
+  };
 }
 
 export default new AnalysisController();

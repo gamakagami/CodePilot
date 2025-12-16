@@ -6,7 +6,7 @@ export const reviewController = {
     try {
       console.log('🔍 [REVIEW CONTROLLER] Received request');
       
-      const { analysis, prediction } = req.body;
+      const { analysis, prediction, code } = req.body;
 
       if (!analysis || !prediction) {
         console.error('❌ [REVIEW CONTROLLER] Missing required fields');
@@ -21,12 +21,14 @@ export const reviewController = {
       console.log('   - Prediction will_fail:', prediction.will_fail);
       console.log('   - Prediction failure_probability:', prediction.failure_probability);
       console.log('   - Prediction reasoning:', prediction.reasoning);
+      console.log('   - Code provided:', !!code, code ? `(${code.length} chars)` : '');
 
       console.log('🔍 [REVIEW CONTROLLER] Calling review service...');
       
       const review = await reviewService.generateReview({
         analysis,
-        prediction
+        prediction,
+        code // Pass code for testing
       });
 
 

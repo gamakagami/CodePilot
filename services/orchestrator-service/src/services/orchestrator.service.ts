@@ -18,32 +18,40 @@ export class OrchestratorService {
   try {
     console.log("🚀 Starting PR analysis pipeline...");
 
-     // 🔍 DIAGNOSTIC: Log the incoming request
-  console.log('📥 [ORCHESTRATOR] Received analysis request:');
-  console.log('   - User ID:', userId);
-  console.log('   - File ID:', request.fileId);
-  console.log('   - Code length:', request.code?.length || 0);
-  console.log('   - Repository:', repositoryFullName);
-  console.log('   - PR ID:', prId);
-  console.log('   - Services config:', {
-    analysisUrl: servicesConfig.analysis.url,
-    predictionUrl: servicesConfig.prediction.url,
-    reviewUrl: servicesConfig.review.url
-  });
+    // 🔍 DIAGNOSTIC: Log context size
+    console.log('📥 [ORCHESTRATOR] Received analysis request:');
+    console.log(`   - Code length: ${request.code?.length || 0}`);
+    console.log(`   - Repo Context: ${request.repoContext?.length || 0} files included`);
     
-    // Step 1: Analyze code
-    console.log("Step 1/3: Analyzing code structure...");
+    // Step 1: Analyze code (Pass the full request including repoContext)
+    console.log("Step 1/3: Analyzing code structure with repository context...");
     const analysisStartTime = Date.now();
-    const analysisResponse = await this.callAnalysisService(request);
-    console.log('   - Analysis response (preview):', JSON.stringify(analysisResponse, null, 2).slice(0, 1500));
+    
+    // Pass 'request' which now contains 'repoContext' and 'repositoryFullName'
+    const analysisResponse = await this.callAnalysisService(request, repositoryFullName);
+    
     const analysisDuration = Date.now() - analysisStartTime;
     console.log(`✅ Analysis complete (${analysisDuration}ms)`);
+    console.log(`🔍 [ORCHESTRATOR] Analysis response structure:`, {
+      hasSuccess: 'success' in analysisResponse,
+      hasData: 'data' in analysisResponse,
+      dataKeys: analysisResponse.data ? Object.keys(analysisResponse.data) : 'no data property',
+      fullResponseKeys: Object.keys(analysisResponse)
+    });
     
     // Step 2: Predict failure
     console.log("Step 2/3: Predicting failure probability...");
     const predictionStartTime = Date.now();
+    
+    // Extract the data from analysis response
+    const analysisData = analysisResponse.data || analysisResponse;
+    console.log(`🔍 [ORCHESTRATOR] Passing to prediction service:`, {
+      hasData: !!analysisData,
+      dataKeys: analysisData ? Object.keys(analysisData) : 'no data'
+    });
+    
     const predictionResponse = await this.callPredictionService(
-      analysisResponse.data
+      analysisData
     );
     console.log('   - Prediction response (preview):', JSON.stringify(predictionResponse, null, 2).slice(0, 1500));
     const predictionDuration = Date.now() - predictionStartTime;
@@ -57,7 +65,8 @@ export class OrchestratorService {
     try {
       const reviewResponse = await this.callReviewService(
         analysisResponse.data,
-        predictionResponse.data
+        predictionResponse.data,
+        request.code // Pass the actual code for testing
       );
       reviewData = reviewResponse;
     } catch (reviewError: any) {
@@ -174,79 +183,84 @@ export class OrchestratorService {
   
   // Replace the callAnalysisService method with this improved version:
 
-private async callAnalysisService(request: AnalyzePRRequest) {
-  const url = `${servicesConfig.analysis.url}${servicesConfig.analysis.endpoints.analyze}`;
-  
-  console.log('🔍 [ORCHESTRATOR] Calling analysis service...');
-  console.log('   - URL:', url);
-  console.log('   - Request payload:', JSON.stringify({
+private async callAnalysisService(
+  request: AnalyzePRRequest,
+  repositoryFullName?: string
+) {
+
+  console.log(
+  "🔍 [ORCHESTRATOR] Analysis URL:",
+  servicesConfig.analysis.url
+);
+
+  // Ensure repoContext and repositoryFullName are included in the POST body to the AI service
+  const payload = {
+    code: request.code,
     fileId: request.fileId,
-    codeLength: request.code?.length || 0,
     developer: request.developer,
-    hasCode: !!request.code
-  }));
-  
-  try {
-    const response = await axios.post(url, request, { 
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json'
-      }
+    repoContext: request.repoContext,
+    repositoryFullName: repositoryFullName || request.repositoryFullName,
+    linesAdded: request.linesAdded,
+    linesDeleted: request.linesDeleted,
+    filesChanged: request.filesChanged,
+    codeCoverageChange: request.codeCoverageChange,
+    buildDuration: request.buildDuration,
+    previousFailureRate: request.previousFailureRate
+  };
+
+  // Ensure proper URL construction (handle trailing slashes)
+  const baseUrl = servicesConfig.analysis.url.endsWith('/') 
+    ? servicesConfig.analysis.url.slice(0, -1) 
+    : servicesConfig.analysis.url;
+  const endpoint = servicesConfig.analysis.endpoints.analyze.startsWith('/')
+    ? servicesConfig.analysis.endpoints.analyze
+    : `/${servicesConfig.analysis.endpoints.analyze}`;
+  const fullUrl = `${baseUrl}${endpoint}`;
+  console.log(`🔍 [ORCHESTRATOR] Calling analysis service at: ${fullUrl}`);
+  console.log(`🔍 [ORCHESTRATOR] Payload keys:`, Object.keys(payload));
+  console.log(`🔍 [ORCHESTRATOR] Repository Full Name:`, repositoryFullName || request.repositoryFullName || 'not provided');
+
+  const response = await axios.post(
+    fullUrl, 
+    payload,
+    { timeout: 60000 } // Give it more time to process context
+  );
+
+  console.log(`✅ [ORCHESTRATOR] Analysis service responded successfully`);
+  console.log(`   - Response keys:`, Object.keys(response.data || {}));
+  if (response.data?.data) {
+    const analysisData = response.data.data;
+    console.log(`   - Analysis data preview:`, {
+      fileId: analysisData.fileId,
+      timestamp: analysisData.timestamp,
+      structure: {
+        functionCount: analysisData.structure?.functionCount,
+        importCount: analysisData.structure?.importCount
+      },
+      metrics: {
+        totalLines: analysisData.metrics?.totalLines,
+        cyclomaticComplexity: analysisData.metrics?.cyclomaticComplexity,
+        complexityRating: analysisData.metrics?.complexityRating
+      },
+      dependencies: {
+        direct: analysisData.dependencies?.direct?.length || 0,
+        reverse: analysisData.dependencies?.reverse?.length || 0,
+        hasCycles: analysisData.dependencies?.hasCycles
+      },
+      mernPatterns: {
+        hasErrorHandling: analysisData.mernPatterns?.errorHandling?.hasErrorHandling,
+        usesExpress: analysisData.mernPatterns?.express?.usesExpress,
+        usesMongoDB: analysisData.mernPatterns?.database?.usesMongoDB
+      },
+      warnings: analysisData.warnings?.length || 0,
+      recommendations: analysisData.recommendations?.length || 0,
+      qualityScore: analysisData.qualityScore
     });
-    
-    console.log('✅ [ORCHESTRATOR] Analysis service responded successfully');
-    console.log('   - Analysis raw response keys:', Object.keys(response.data));
-    console.log('   - Analysis data preview:', JSON.stringify(response.data, null, 2).slice(0, 1500));
-    return response.data;
-    
-  } catch (error: any) {
-    console.error('❌ [ORCHESTRATOR] Analysis service error details:');
-    
-    if (error.response) {
-      // Server responded with error status
-      console.error('   - Status:', error.response.status);
-      console.error('   - Status Text:', error.response.statusText);
-      console.error('   - Response Data:', JSON.stringify(error.response.data, null, 2));
-      console.error('   - Headers:', error.response.headers);
-      
-      const errorMessage = error.response.data?.error 
-        || error.response.data?.message 
-        || error.response.statusText 
-        || 'Unknown server error';
-      
-      throw new Error(`Analysis service error (${error.response.status}): ${errorMessage}`);
-      
-    } else if (error.request) {
-      // Request made but no response received
-      console.error('   - No response received from analysis service');
-      console.error('   - Request config:', {
-        url: error.config?.url,
-        method: error.config?.method,
-        timeout: error.config?.timeout
-      });
-      
-      throw new Error(`Analysis service unavailable: No response received. Is the service running at ${url}?`);
-      
-    } else if (error.code === 'ECONNREFUSED') {
-      // Connection refused
-      console.error('   - Connection refused');
-      throw new Error(`Cannot connect to analysis service at ${url}. Is the service running?`);
-      
-    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
-      // Timeout
-      console.error('   - Request timeout');
-      throw new Error(`Analysis service timeout after 30s`);
-      
-    } else {
-      // Something else happened
-      console.error('   - Error type:', error.constructor.name);
-      console.error('   - Error code:', error.code);
-      console.error('   - Error message:', error.message);
-      console.error('   - Full error:', error);
-      
-      throw new Error(`Analysis request failed: ${error.message}`);
-    }
+  } else {
+    console.log(`   - Response structure preview:`, JSON.stringify(response.data, null, 2).slice(0, 1000));
   }
+
+  return response.data;
 }
 
 // Also improve the other service calls similarly:
@@ -291,11 +305,12 @@ private async callPredictionService(analysis: any) {
   }
 }
   
-  private async callReviewService(analysis: any, prediction: any) {
+  private async callReviewService(analysis: any, prediction: any, code?: string) {
   const url = `${servicesConfig.review.url}${servicesConfig.review.endpoints.review}`;
   
   try {
     console.log('🔍 [ORCHESTRATOR] Calling review service...');
+    console.log(`   - Code length: ${code?.length || 0}`);
     
     const response = await axios.post(url, {
       analysis: {
@@ -312,7 +327,8 @@ private async callPredictionService(analysis: any) {
         confidence: prediction.confidence,
         // include rationale so review service can produce issues
         reasoning: prediction.reasoning
-      }
+      },
+      code: code // Pass the actual code for testing
     }, { timeout: 60000 });
     
     console.log('🔍 [ORCHESTRATOR] Review service responded');

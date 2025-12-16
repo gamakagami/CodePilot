@@ -46,8 +46,19 @@ model Repository {
   userProfileId   Int
   userProfile     UserProfile   @relation(fields: [userProfileId], references: [id])
   pullRequests    PullRequest[]
+  files        File[]
 
   @@unique([name, userProfileId])
+}
+
+model File {
+  id           String     @id @default(cuid())
+  path         String
+  content      String?    @db.Text // Use Text for large file content
+  repository   Repository @relation(fields: [repositoryId], references: [id])
+  repositoryId String
+
+  @@unique([path, repositoryId])
 }
 
 model PullRequest {
