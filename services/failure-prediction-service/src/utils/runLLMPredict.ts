@@ -1,27 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-/**
- * Lazily create an Anthropic client if we have a usable API key.
- * This avoids throwing at module import time when no key is configured.
- */
 function createAnthropicClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-
-  if (!apiKey || !apiKey.trim()) {
-    console.warn(
-      "[failure-prediction-service] ANTHROPIC_API_KEY is not set; " +
-        "LLM-based prediction will fall back to a safe default."
-    );
+  if (!apiKey?.trim()) {
+    console.warn("[failure-prediction] ANTHROPIC_API_KEY not set");
     return null;
   }
-
   try {
     return new Anthropic({ apiKey });
   } catch (err: any) {
-    console.error(
-      "[failure-prediction-service] Failed to initialize Anthropic client:",
-      err?.message || err
-    );
+    console.error("[failure-prediction] Client init failed:", err?.message);
     return null;
   }
 }
@@ -29,241 +17,260 @@ function createAnthropicClient() {
 const client = createAnthropicClient();
 
 /**
- * Sanitizes analysis data to remove sensitive information before sending to LLM
- * Only sends metadata and patterns, never actual code content
+ * Extract actual code content from payload for analysis
+ * Prefer originalCode if available, otherwise reconstruct from snippets
  */
-function sanitizeAnalysis(analysis: any): any {
+function extractCodeForAnalysis(payload: any): string {
+  // Use original complete code if available
+  if (payload.originalCode) {
+    return payload.originalCode;
+  }
+  
+  // Fallback: reconstruct from structure (legacy)
+  const structure = payload.structure || {};
+  const functions = structure.functions || [];
+  const imports = structure.imports || [];
+  
+  // Combine imports and functions into analyzable code
+  const codeSnippets = [
+    ...imports.map((imp: string) => imp),
+    '',
+    ...functions
+  ];
+  
+  return codeSnippets.join('\n');
+}
+
+/**
+ * Check for ACTUAL issues from static analysis first
+ * ONLY flag CERTAIN failures - things that will 100% break at runtime
+ */
+function checkActualIssues(payload: any): { predicted_failure: number; failure_probability: number; reasoning: string; failure_points: string[] } | null {
+  const issues = payload.actualIssues;
+  if (!issues) return null;
+  
+  const certainFailures: string[] = [];
+  
+  // ONLY CERTAIN FAILURES - these will 100% crash
+  if (issues.undefinedVariables?.length > 0) {
+    certainFailures.push(...issues.undefinedVariables.map((v: any) => 
+      `Undefined variable: ${v.name} at line ${v.line} - will throw ReferenceError`
+    ));
+  }
+  
+  if (issues.undefinedFunctions?.length > 0) {
+    certainFailures.push(...issues.undefinedFunctions.map((f: any) => 
+      `Undefined function: ${f.name} at line ${f.line} - will throw ReferenceError`
+    ));
+  }
+  
+  if (issues.syntaxErrors?.length > 0) {
+    certainFailures.push(...issues.syntaxErrors.map((e: any) => 
+      `Syntax error: ${e.message} at line ${e.line} - code won't parse`
+    ));
+  }
+  
+  if (issues.missingImports?.length > 0) {
+    certainFailures.push(...issues.missingImports.map((i: any) => 
+      `Missing import: ${i.identifier} from '${i.requiredFrom}' at line ${i.line} - will throw ReferenceError`
+    ));
+  }
+  
+  // If no certain failures, return null (let LLM analyze warnings)
+  if (certainFailures.length === 0) return null;
+  
+  // These are CERTAIN failures - very high probability
+  const probability = Math.min(0.95, 0.85 + (certainFailures.length * 0.05));
+  
   return {
-    // File metadata (safe)
-    fileType: analysis.fileType || "unknown",
-    fileExtension: analysis.fileName?.split('.').pop() || "unknown",
-    changeType: analysis.changeType || "unknown",
-    
-    // Metrics (safe - just numbers)
-    linesAdded: analysis.lines_added || 0,
-    linesDeleted: analysis.lines_deleted || 0,
-    filesChanged: analysis.files_changed || 0,
-    avgFunctionComplexity: analysis.avg_function_complexity || 0,
-    
-    // Boolean flags about code patterns (safe - no actual code)
-    hasUndefinedVariables: Boolean(analysis.undefinedVariables?.length),
-    undefinedVariableCount: analysis.undefinedVariables?.length || 0,
-    
-    hasSyntaxErrors: Boolean(analysis.syntaxErrors?.length),
-    syntaxErrorCount: analysis.syntaxErrors?.length || 0,
-    
-    hasTypeErrors: Boolean(analysis.typeErrors?.length),
-    typeErrorCount: analysis.typeErrors?.length || 0,
-    
-    hasUnusedImports: Boolean(analysis.unusedImports?.length),
-    unusedImportCount: analysis.unusedImports?.length || 0,
-    
-    // Module/dependency info (safe - just counts and types)
-    moduleType: analysis.module_type || "general",
-    dependencyCount: analysis.dependencies?.length || 0,
-    
-    // Test info (safe)
-    containsTestChanges: Boolean(analysis.contains_test_changes),
-    codeCoverageChange: analysis.code_coverage_change || 0,
-    
-    // Historical context (safe - aggregated data)
-    previousFailureRate: analysis.previous_failure_rate || 0,
-    buildDuration: analysis.build_duration || 0,
-    
-    // Pattern flags (derived, not raw code)
-    hasBreakingChanges: Boolean(analysis.breakingChanges),
-    hasAPIChanges: Boolean(analysis.apiChanges),
-    hasSchemaChanges: Boolean(analysis.schemaChanges),
-    
-    // Error pattern types (not actual error messages)
-    errorPatterns: analysis.syntaxErrors?.map((e: any) => ({
-      type: e.type || "unknown",
-      severity: e.severity || "unknown"
-    })) || []
+    predicted_failure: 1,
+    failure_probability: probability,
+    reasoning: `CERTAIN failure: ${certainFailures[0]}${certainFailures.length > 1 ? ` (+ ${certainFailures.length - 1} more)` : ''}`,
+    failure_points: certainFailures
   };
 }
 
-export async function runLLMPredict(analysis: any): Promise<any> {
-  // If we couldn't create a client (no key or bad config), return a safe fallback
+/**
+ * Prepare context for deep analysis
+ */
+function prepareAnalysisContext(payload: any): any {
+  const context = payload.context || {};
+  
+  return {
+    fileId: payload.fileId,
+    code: extractCodeForAnalysis(payload),
+    metrics: payload.metrics || {},
+    patterns: payload.mernPatterns || {},
+    // NEW: Include scope context
+    availableInScope: context.availableInScope || {
+      variables: [],
+      functions: [],
+      hooks: [],
+      imports: []
+    },
+    propsAvailable: context.propsAvailable || {},
+    externalDeps: context.externalDeps || { npm: [], internal: [] }
+  };
+}
+
+export async function runLLMPredict(payload: any): Promise<any> {
+  // FIRST: Check for CERTAIN failures only (undefined vars, syntax errors, missing imports)
+  const certainFailure = checkActualIssues(payload);
+  if (certainFailure) {
+    console.log("[failure-prediction] Found certain failure:", certainFailure);
+    return certainFailure;
+  }
+  
+  // Check if there are any warnings worth analyzing
+  const issues = payload.actualIssues || {};
+  const hasWarnings = (issues.unhandledPromises?.length || 0) > 0 || 
+                      (issues.nullSafetyIssues?.length || 0) > 0;
+  
+  // If no LLM client and no warnings, predict PASS
   if (!client) {
     return {
       predicted_failure: 0,
-      failure_probability: 0.3,
-      reasoning:
-        "LLM client is not configured (missing or invalid ANTHROPIC_API_KEY); returning conservative default prediction",
+      failure_probability: 0.15,
+      reasoning: "No critical issues found - code should execute",
+      confidence: "medium"
     };
   }
+  
+  // If no warnings at all, predict PASS without LLM
+  if (!hasWarnings) {
+    return {
+      predicted_failure: 0,
+      failure_probability: 0.1,
+      reasoning: "Clean code - no issues detected",
+      confidence: "high"
+    };
+  }
+  
+  const context = prepareAnalysisContext(payload);
+  
+  const prompt = `You are an expert code reviewer analyzing a MERN stack code change for potential runtime failures.
 
-  // Sanitize the input data
-  const sanitizedData = sanitizeAnalysis(analysis);
+FILE: ${context.fileId}
 
-  const prompt = `You are a code analyzer that predicts if MERN stack code changes will cause failures.
+CODE TO ANALYZE (may be a partial snippet from a larger file):
+${context.code}
 
-SANITIZED ANALYSIS DATA (no source code included):
-${JSON.stringify(sanitizedData, null, 2)}
+AVAILABLE IN SCOPE (from full codebase analysis):
+- Variables: ${JSON.stringify(context.availableInScope.variables)}
+- Functions: ${JSON.stringify(context.availableInScope.functions)}
+- Hooks: ${JSON.stringify(context.availableInScope.hooks)}
+- Imports: ${JSON.stringify(context.availableInScope.imports)}
 
-IMPORTANT - FILE TYPE CLASSIFICATION:
-First, identify if this is executable MERN stack code or a non-code file:
+EXTERNAL DEPENDENCIES:
+- NPM packages: ${JSON.stringify(context.externalDeps.npm)}
 
-EXECUTABLE CODE FILES (analyze for failures):
-- JavaScript/TypeScript files (.js, .ts, .jsx, .tsx)
-- React components
-- Node.js/Express backend code
-- MongoDB queries and schemas
-- API routes and controllers
+WARNINGS FOUND (NOT certain failures):
+${JSON.stringify(issues, null, 2)}
 
-NON-CODE FILES (always predict PASS with 0.0 probability):
-- README files (.md, .txt)
-- Documentation files
-- Configuration files (.json, .yml, .yaml, .env examples)
-- Package manifests (package.json, package-lock.json)
-- Git files (.gitignore, .gitattributes)
-- License files
-- Text documentation
+CRITICAL INSTRUCTION:
+Static analysis already checked for:
+- Undefined variables/functions → NONE FOUND (would be certain failure)
+- Syntax errors → NONE FOUND (would be certain failure)
+- Missing imports for used APIs → NONE FOUND (would be certain failure)
 
-If this is a NON-CODE file, immediately return:
-{"predicted_failure": 0, "failure_probability": 0.0, "reasoning": "Non-code file (documentation/config) - no runtime impact"}
+The warnings above are POTENTIAL issues, not certain failures.
 
-YOUR TASK (for MERN stack code only):
-Analyze the METADATA and determine if it indicates a likely runtime failure.
+YOUR TASK - BE REALISTIC:
+Analyze if the code will ACTUALLY FAIL AT RUNTIME based on what's written.
 
-WHAT COUNTS AS A FAILURE (predict failure_probability >= 0.5):
+ONLY predict FAILURE (probability >= 0.5) if you see:
 
-1. UNDEFINED VARIABLES (hasUndefinedVariables: true)
-   - Strong indicator of runtime errors
-   - Higher count = higher probability
+1. LOGIC ERRORS that will 100% crash:
+   - Accessing property on value that's DEFINITELY null/undefined in the code path
+   - Infinite loops that are OBVIOUS
+   - Type mismatches that will throw errors (e.g., calling .map() on non-array)
+   - Missing required parameters that will cause crashes
 
-2. SYNTAX/TYPE ERRORS (hasSyntaxErrors or hasTypeErrors: true)
-   - Will cause immediate failures
-   - Count indicates severity
+2. DO NOT predict failure for:
+   - Unhandled promises (they don't crash unless rejected AND used)
+   - Potential null access IF there are checks (if statements, optional chaining)
+   - Missing error handling (bad practice but doesn't crash by default)
+   - Code style issues
+   - Best practice violations
 
-3. BREAKING CHANGES (hasBreakingChanges: true)
-   - API/schema changes without migration
-   - High failure risk
+EXAMPLES OF REAL FAILURES:
+❌ "return user.name" where user is ALWAYS null → FAILURE (0.8)
+❌ "items.map()" where items is a string → FAILURE (0.9)
+❌ Infinite while loop → FAILURE (0.95)
 
-4. HIGH COMPLEXITY + ERRORS
-   - avgFunctionComplexity > 10 AND errors present
-   - Indicates risky changes
+EXAMPLES OF NON-FAILURES:
+✅ "getUser().then()" without .catch() → PASS (promise might succeed)
+✅ "user.name" where user comes from useState(null) but has loading check → PASS
+✅ Missing try-catch around working code → PASS (just bad practice)
+✅ Code without validation → PASS (might work with valid input)
 
-5. LOW COVERAGE + CHANGES
-   - codeCoverageChange < -5 with large changes
-   - Reduced safety net
+ANALYZE THE ACTUAL CODE PATH:
+- Does the code actually call the problematic line?
+- Are there checks (if statements) protecting null access?
+- Will the promise rejection actually affect runtime?
+- Is there a real code path that leads to a crash?
 
-WHAT DOES NOT COUNT AS FAILURE (predict failure_probability < 0.5):
+RESPONSE FORMAT (JSON only):
+{
+  "predicted_failure": 0 or 1,
+  "failure_probability": 0.0-1.0,
+  "reasoning": "Specific issue with code path that WILL crash, or reason why it's safe",
+  "confidence": "high/medium/low"
+}
 
-- High complexity alone (code still works)
-- Unused imports (doesn't break runtime)
-- Style issues
-- Missing tests (if no errors detected)
-- Small line changes without error flags
+BE CONSERVATIVE - Default to PASS unless you're certain it will crash:
+- If uncertain → predicted_failure = 0, probability <= 0.3
+- Only predict failure if you can trace the exact crash path
+- Warnings/best-practices violations → probability <= 0.3 (PASS)
+- Actual logic errors visible in code → probability >= 0.7 (FAIL)
 
-ANALYSIS APPROACH:
-
-1. Check error flags (undefined vars, syntax, type errors)
-2. If undefinedVariableCount > 0 → HIGH FAILURE RISK
-3. If syntaxErrorCount > 0 → HIGH FAILURE RISK
-4. If hasBreakingChanges → MEDIUM-HIGH RISK
-5. If only complexity/coverage issues → LOW RISK
-6. Combine multiple weak signals for overall assessment
-
-RESPONSE FORMAT:
-Return ONLY a JSON object on a single line:
-
-{"predicted_failure": 0 or 1, "failure_probability": 0.0-1.0, "reasoning": "Brief single-line explanation"}
-
-RULES:
-- predicted_failure = 1 if failure_probability >= 0.5
-- predicted_failure = 0 if failure_probability < 0.5
-- If hasUndefinedVariables or hasSyntaxErrors → ALWAYS predict failure
-- If hasBreakingChanges → predict failure (0.6-0.8)
-- If only complexity/unused imports → predict pass
-- When uncertain → predict pass (0.2-0.3 probability)
-- Return ONLY the JSON object on ONE LINE
-- NO line breaks in reasoning field
-
-Now analyze the metadata and make your prediction:`;
+Now analyze:`;
 
   try {
     const response = await client.messages.create({
-      model: "claude-3-haiku-20240307",
-      max_tokens: 4096,
+      model: "claude-3-5-sonnet-20241022",
+      max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
     });
 
     const block = response.content.find((b) => b.type === "text");
     if (!block || !("text" in block)) {
-      throw new Error("No valid text block returned from Claude");
+      throw new Error("No text block from Claude");
     }
 
-    try {
-      // Extract and clean the response text
-      let text = (block as any).text?.trim?.() ?? "";
+    let text = (block as any).text.trim()
+      .replace(/```json\n?/g, "")
+      .replace(/\n?```/g, "");
 
-      console.log("Raw LLM Response:", text);
-
-      // Remove markdown code blocks if present
-      text = text.replace(/```json\n?/g, "").replace(/\n?```/g, "");
-
-      // Clean up control characters and excess whitespace in the entire response
-      text = text
-        .replace(/[\n\r\t]/g, " ") // Replace newlines, returns, tabs with spaces
-        .replace(/\s+/g, " ") // Replace multiple spaces with single space
-        .trim();
-
-      // Try to find JSON object in the text
-      const jsonMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
-      if (!jsonMatch) {
-        throw new Error(
-          `No JSON object found in response: ${text.substring(0, 200)}...`
-        );
-      }
-
-      let jsonStr = jsonMatch[0];
-
-      // Additional cleaning for the JSON string
-      // Fix common issues with quotes and control characters
-      jsonStr = jsonStr
-        .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ") // Remove control characters
-        .replace(/\s+/g, " ") // Normalize whitespace again
-        .trim();
-
-      console.log("Cleaned JSON string:", jsonStr);
-
-      const parsed = JSON.parse(jsonStr);
-
-      // Validate the response has required fields
-      if (
-        typeof parsed.predicted_failure === "undefined" ||
-        typeof parsed.failure_probability === "undefined"
-      ) {
-        throw new Error("Response missing required fields");
-      }
-
-      return parsed;
-    } catch (err: any) {
-      console.error("Full LLM Response:", (block as any).text);
-      console.error("Parse error:", err.message);
-
-      // Return a safe fallback
-      return {
-        predicted_failure: 0,
-        failure_probability: 0.3,
-        reasoning: "Failed to parse LLM response, defaulting to pass",
-      };
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("Raw response:", text);
+      throw new Error("No JSON in response");
     }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    if (typeof parsed.predicted_failure === "undefined" || 
+        typeof parsed.failure_probability === "undefined") {
+      throw new Error("Missing required fields");
+    }
+
+    console.log("[failure-prediction] LLM analysis result:", {
+      predicted_failure: parsed.predicted_failure,
+      probability: parsed.failure_probability,
+      reasoning: parsed.reasoning,
+      confidence: parsed.confidence
+    });
+    
+    return parsed;
+    
   } catch (err: any) {
-    // Catch authentication / network errors from the Anthropic SDK itself
-    console.error(
-      "[failure-prediction-service] LLM call failed:",
-      err?.message || err
-    );
-
-    // Do NOT surface this as a 500 to the orchestrator; return a safe default
+    console.error("[failure-prediction] Error:", err.message);
     return {
       predicted_failure: 0,
       failure_probability: 0.3,
-      reasoning:
-        "LLM prediction service error (e.g., authentication or network issue); returning conservative default prediction",
+      reasoning: "Analysis error - conservative default",
+      confidence: "low"
     };
   }
 }

@@ -47,12 +47,15 @@ class AnalysisController {
         });
       }
 
-      // Build comprehensive response with MERN patterns
+      // Build comprehensive response with MERN patterns + context
       const response = {
         success: true,
         data: {
           fileId: result.fileId,
           timestamp: result.timestamp,
+          
+          // IMPORTANT: Include original code for prediction service
+          originalCode: code,
           
           // Code structure
           structure: {
@@ -103,7 +106,8 @@ class AnalysisController {
               usesMongoose: result.mernPatterns.usesMongoose,
               hasSchemaValidation: result.mernPatterns.hasSchemaValidation,
               hasIndexesDefined: result.mernPatterns.hasIndexesDefined,
-              usesLeanQueries: result.mernPatterns.usesLeanQueries
+              usesLeanQueries: result.mernPatterns.usesLeanQueries,
+              hasQueries: result.mernPatterns.usesMongoDB || result.mernPatterns.usesMongoose
             },
 
             // Validation
@@ -113,11 +117,17 @@ class AnalysisController {
               validatesQueryParams: result.mernPatterns.validatesQueryParams
             },
 
-          // Issues and warnings
-          potentialIssues: result.mernPatterns.potentialIssues,
-          issueCount: result.mernPatterns.potentialIssues.length,
-          severity: this.assessIssueSeverity(result.mernPatterns.potentialIssues)
-        },
+            // Issues and warnings
+            potentialIssues: result.mernPatterns.potentialIssues,
+            issueCount: result.mernPatterns.potentialIssues.length,
+            severity: this.assessIssueSeverity(result.mernPatterns.potentialIssues)
+          },
+
+          // NEW: Contextual information for prediction service
+          context: this.buildContext(result),
+
+          // NEW: Actual issues found by static analysis
+          actualIssues: this.detectActualIssues(result, code),
 
           // Code similarity
           similarPatterns: result.similarPatterns.map(pattern => ({
@@ -153,6 +163,312 @@ class AnalysisController {
       });
     }
   };
+
+  /**
+   * NEW: Build context object for prediction service
+   */
+  private buildContext(result: any): any {
+    // Extract variables from functions
+    const variables = new Set<string>();
+    const functions = new Set<string>();
+    const hooks = new Set<string>();
+    const imports = new Set<string>();
+
+    // Parse imports
+    if (result.imports && Array.isArray(result.imports)) {
+      result.imports.forEach((imp: string) => {
+        // Extract import identifiers
+        const importMatch = imp.match(/import\s+(?:{([^}]+)}|(\w+))\s+from/);
+        if (importMatch) {
+          if (importMatch[1]) {
+            // Named imports: { useState, useEffect }
+            importMatch[1].split(',').forEach(name => {
+              const cleanName = name.trim();
+              imports.add(cleanName);
+              if (cleanName.startsWith('use')) hooks.add(cleanName);
+            });
+          } else if (importMatch[2]) {
+            // Default import: React
+            imports.add(importMatch[2].trim());
+          }
+        }
+      });
+    }
+
+    // Parse functions for variable declarations
+    if (result.functions && Array.isArray(result.functions)) {
+      result.functions.forEach((fn: string) => {
+        // Extract function names
+        const fnNameMatch = fn.match(/function\s+(\w+)|const\s+(\w+)\s*=/);
+        if (fnNameMatch) {
+          functions.add(fnNameMatch[1] || fnNameMatch[2]);
+        }
+
+        // Extract useState declarations: const [x, setX] = useState
+        const stateMatches = fn.matchAll(/const\s+\[(\w+),\s*(\w+)\]\s*=\s*useState/g);
+        for (const match of stateMatches) {
+          variables.add(match[1]); // state variable
+          variables.add(match[2]); // setter function
+        }
+
+        // Extract regular const/let/var declarations
+        const varMatches = fn.matchAll(/(?:const|let|var)\s+(\w+)\s*=/g);
+        for (const match of varMatches) {
+          if (!match[0].includes('[')) { // Skip destructuring
+            variables.add(match[1]);
+          }
+        }
+
+        // Extract function parameters
+        const paramMatch = fn.match(/\(([^)]*)\)/);
+        if (paramMatch && paramMatch[1]) {
+          paramMatch[1].split(',').forEach(param => {
+            const cleanParam = param.trim().split(/[=:]/)[0].trim();
+            if (cleanParam && !cleanParam.includes('{')) {
+              variables.add(cleanParam);
+            }
+          });
+        }
+      });
+    }
+
+    // Detect NPM packages from imports
+    const npmPackages = new Set<string>();
+    if (result.imports && Array.isArray(result.imports)) {
+      result.imports.forEach((imp: string) => {
+        const packageMatch = imp.match(/from\s+['"]([^'"]+)['"]/);
+        if (packageMatch) {
+          const pkg = packageMatch[1];
+          if (!pkg.startsWith('.') && !pkg.startsWith('/')) {
+            // External package
+            npmPackages.add(pkg.split('/')[0]);
+          }
+        }
+      });
+    }
+
+    return {
+      availableInScope: {
+        variables: Array.from(variables),
+        functions: Array.from(functions),
+        hooks: Array.from(hooks),
+        imports: Array.from(imports)
+      },
+      externalDeps: {
+        npm: Array.from(npmPackages),
+        internal: [] // Could be enhanced with module resolution
+      },
+      propsAvailable: {
+        names: [], // Could be detected from function params
+        types: {}
+      }
+    };
+  }
+
+  /**
+   * NEW: Detect actual issues through static analysis
+   * Now works with original code for better accuracy
+   */
+  private detectActualIssues(result: any, originalCode: string): any {
+    const issues: any = {
+      undefinedVariables: [],
+      undefinedFunctions: [],
+      missingImports: [],
+      syntaxErrors: [],
+      nullSafetyIssues: [],
+      unhandledPromises: [],
+      typeMismatches: []
+    };
+
+    // Build available scope from the ORIGINAL CODE
+    const availableVars = new Set<string>();
+    const availableFuncs = new Set<string>();
+    const availableImports = new Set<string>();
+
+    // Parse imports from original code
+    const importMatches = originalCode.matchAll(/import\s+(?:{([^}]+)}|(\w+))\s+from\s+['"]([^'"]+)['"]/g);
+    for (const match of importMatches) {
+      if (match[1]) {
+        // Named imports: { useState, useEffect }
+        match[1].split(',').forEach(name => availableImports.add(name.trim()));
+      } else if (match[2]) {
+        // Default import: React
+        availableImports.add(match[2].trim());
+      }
+    }
+
+    // Parse function declarations from original code
+    const functionMatches = originalCode.matchAll(/(?:function\s+(\w+)|const\s+(\w+)\s*=\s*(?:function|\([^)]*\)\s*=>))/g);
+    for (const match of functionMatches) {
+      availableFuncs.add(match[1] || match[2]);
+    }
+
+    // Parse variable declarations from original code
+    const varMatches = originalCode.matchAll(/(?:const|let|var)\s+(\w+)\s*=/g);
+    for (const match of varMatches) {
+      availableVars.add(match[1]);
+    }
+
+    // Parse useState declarations: const [x, setX] = useState
+    const stateMatches = originalCode.matchAll(/const\s+\[(\w+),\s*(\w+)\]\s*=\s*useState/g);
+    for (const match of stateMatches) {
+      availableVars.add(match[1]); // state variable
+      availableVars.add(match[2]); // setter function
+    }
+
+    // Check for missing imports for hooks
+    const lines = originalCode.split('\n');
+    
+    if (originalCode.includes('useState') && !availableImports.has('useState')) {
+      const line = lines.findIndex(l => l.includes('useState')) + 1;
+      issues.missingImports.push({
+        identifier: 'useState',
+        requiredFrom: 'react',
+        line: line || 2
+      });
+    }
+
+    if (originalCode.includes('useEffect') && !availableImports.has('useEffect')) {
+      const line = lines.findIndex(l => l.includes('useEffect')) + 1;
+      issues.missingImports.push({
+        identifier: 'useEffect',
+        requiredFrom: 'react',
+        line: line || 4
+      });
+    }
+
+    if (originalCode.includes('useContext') && !availableImports.has('useContext')) {
+      const line = lines.findIndex(l => l.includes('useContext')) + 1;
+      issues.missingImports.push({
+        identifier: 'useContext',
+        requiredFrom: 'react',
+        line: line || 3
+      });
+    }
+
+    // Check for unhandled promises
+    const promiseMatches = originalCode.matchAll(/(\w+)\([^)]*\)\.then\(/g);
+    for (const match of promiseMatches) {
+      const functionCall = match[0].replace('.then(', '');
+      const startIndex = match.index || 0;
+      
+      // Check if there's a .catch() after this .then()
+      const afterThen = originalCode.substring(startIndex);
+      const hasCatch = afterThen.match(/\.then\([^)]*\)[^.]*\.catch\(/);
+      const hasTryCatch = originalCode.substring(Math.max(0, startIndex - 200), startIndex).includes('try');
+      
+      if (!hasCatch && !hasTryCatch) {
+        const line = originalCode.substring(0, startIndex).split('\n').length;
+        issues.unhandledPromises.push({
+          functionCall,
+          line,
+          reason: 'Promise has no .catch() or try-catch block'
+        });
+      }
+    }
+
+    // Check for null safety issues
+    const propertyAccessMatches = originalCode.matchAll(/(\w+)\.(\w+)/g);
+    for (const match of propertyAccessMatches) {
+      const varName = match[1];
+      const fullMatch = match[0];
+      const startIndex = match.index || 0;
+      
+      // Skip method calls on built-in objects
+      const builtins = ['console', 'Math', 'JSON', 'Object', 'Array', 'String', 'Number'];
+      if (builtins.includes(varName)) continue;
+      
+      // Check if variable is initialized as null
+      const initMatch = originalCode.match(new RegExp(`${varName}\\s*=\\s*(?:null|undefined)`));
+      if (initMatch) {
+        // Check if there's a null check before this access
+        const beforeAccess = originalCode.substring(Math.max(0, startIndex - 500), startIndex);
+        const hasNullCheck = beforeAccess.match(new RegExp(`if\\s*\\([^)]*${varName}[^)]*\\)|${varName}\\s*&&|${varName}\\?\\.|!${varName}`));
+        
+        if (!hasNullCheck) {
+          const line = originalCode.substring(0, startIndex).split('\n').length;
+          issues.nullSafetyIssues.push({
+            variable: varName,
+            accessPath: fullMatch,
+            line,
+            reason: `${varName} could be null/undefined without safety check`
+          });
+        }
+      }
+    }
+
+    // Check for undefined function calls
+    const functionCallMatches = originalCode.matchAll(/(\w+)\(/g);
+    const builtins = ['console', 'setTimeout', 'setInterval', 'parseInt', 'parseFloat', 'require', 'import'];
+    
+    for (const match of functionCallMatches) {
+      const funcName = match[1];
+      const startIndex = match.index || 0;
+      
+      // Skip if it's a method call (has a dot before it)
+      const beforeCall = originalCode.substring(Math.max(0, startIndex - 1), startIndex);
+      if (beforeCall === '.') continue;
+      
+      // Skip built-in functions
+      if (builtins.includes(funcName)) continue;
+      
+      // Check if function is defined or imported
+      if (!availableFuncs.has(funcName) && 
+          !availableImports.has(funcName) &&
+          !availableVars.has(funcName)) {
+        
+        const line = originalCode.substring(0, startIndex).split('\n').length;
+        const suggestion = this.findSimilarName(funcName, Array.from(availableFuncs));
+        
+        issues.undefinedFunctions.push({
+          name: funcName,
+          line,
+          suggestion: suggestion || undefined
+        });
+      }
+    }
+
+    return issues;
+  }
+
+  /**
+   * Find similar variable/function names for suggestions
+   */
+  private findSimilarName(target: string, available: string[]): string | null {
+    const maxDistance = 2; // Maximum Levenshtein distance
+    
+    for (const name of available) {
+      const distance = this.levenshteinDistance(target.toLowerCase(), name.toLowerCase());
+      if (distance <= maxDistance) {
+        return name;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  private levenshteinDistance(a: string, b: string): number {
+    const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+
+    for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
+
+    for (let j = 1; j <= b.length; j++) {
+      for (let i = 1; i <= a.length; i++) {
+        const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,
+          matrix[j - 1][i] + 1,
+          matrix[j - 1][i - 1] + indicator
+        );
+      }
+    }
+
+    return matrix[b.length][a.length];
+  }
 
   /**
    * Get a batch of analyses
