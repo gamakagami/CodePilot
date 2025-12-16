@@ -222,19 +222,28 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
 
     // Loop through files and fetch content
     for (const file of files) {
-      const contentResponse = await axios.get(file.url, {
-        headers: { Authorization: `Bearer ${profile.githubToken}` }
-      });
-      
-      // GitHub blobs are Base64 encoded
-      const content = Buffer.from(contentResponse.data.content, 'base64').toString('utf-8');
+  const contentResponse = await axios.get(file.url, {
+    headers: { Authorization: `Bearer ${profile.githubToken}` }
+  });
 
-      await prisma.file.upsert({
-        where: { path_repositoryId: { path: file.path, repositoryId: createdRepo.id } },
-        update: { content },
-        create: { path: file.path, content, repositoryId: createdRepo.id }
-      });
-    }
+  const raw = Buffer.from(contentResponse.data.content, "base64");
+
+  // Skip binary files (contain null bytes)
+  if (raw.includes(0x00)) {
+    console.log(`Skipping binary file: ${file.path}`);
+    continue;
+  }
+
+  // Now safe to convert to UTF‑8
+  const content = raw.toString("utf-8");
+
+  await prisma.file.upsert({
+    where: { path_repositoryId: { path: file.path, repositoryId: createdRepo.id } },
+    update: { content },
+    create: { path: file.path, content, repositoryId: createdRepo.id }
+  });
+}
+
   }
 
   // 3. PR Sync (Always runs to keep PRs updated)

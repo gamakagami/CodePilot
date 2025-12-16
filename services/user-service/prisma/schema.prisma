@@ -56,7 +56,7 @@ model File {
   path         String
   content      String?    @db.Text // Use Text for large file content
   repository   Repository @relation(fields: [repositoryId], references: [id])
-  repositoryId String
+  repositoryId Int
 
   @@unique([path, repositoryId])
 }
