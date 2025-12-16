@@ -197,8 +197,18 @@ function PullRequest() {
                   onClick={() => id && submitMutation.mutate({ prId: id })}
                   disabled={submitMutation.isPending}
                 >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  {submitMutation.isPending ? "Analyzing..." : "Analyze"}
+                  {submitMutation.isPending ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing...
+          
+                  </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Analyze
+                    </>
+                  )}
                 </Button>
                 {(() => {
                   const githubUrl = profileData?.githubUsername
