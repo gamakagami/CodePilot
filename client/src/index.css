@@ -8,77 +8,83 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 220 13% 13%;
+    /* Yellow background, black text scheme */
+    --background: 50 100% 50%; /* vivid yellow */
+    --foreground: 0 0% 0%; /* black */
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 13% 13%;
+    --card: 50 100% 52%; /* slightly different yellow for separation */
+    --card-foreground: 0 0% 0%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 13%;
+    --popover: 50 100% 52%;
+    --popover-foreground: 0 0% 0%;
 
-    --primary: 213 94% 45%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary as black to contrast on yellow surfaces */
+    --primary: 0 0% 0%;
+    --primary-foreground: 50 100% 50%;
 
-    --secondary: 220 13% 95%;
-    --secondary-foreground: 220 13% 13%;
+    /* Secondary/muted as lighter yellow tints */
+    --secondary: 50 100% 60%;
+    --secondary-foreground: 0 0% 0%;
 
-    --muted: 220 13% 95%;
-    --muted-foreground: 220 9% 46%;
+    --muted: 50 100% 60%;
+    --muted-foreground: 0 0% 0%;
 
-    --accent: 213 94% 45%;
-    --accent-foreground: 0 0% 100%;
+    /* Accent can be a deeper yellow/orange */
+    --accent: 45 100% 45%;
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 50 100% 40%;
+    --warning-foreground: 0 0% 0%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 213 94% 45%;
+    /* Borders and inputs slightly darker yellow for contrast */
+    --border: 45 100% 40%;
+    --input: 45 100% 40%;
+    --ring: 0 0% 0%; /* black focus ring */
 
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 220 13% 8%;
-    --foreground: 0 0% 98%;
+    /* Keep dark mode coherent: dark yellow/black inversion */
+    --background: 0 0% 0%;
+    --foreground: 50 100% 50%;
 
-    --card: 220 13% 11%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 7%;
+    --card-foreground: 50 100% 60%;
 
-    --popover: 220 13% 11%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 50 100% 60%;
 
-    --primary: 213 94% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 50 100% 50%; /* yellow primary on dark */
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 220 13% 15%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 50 100% 60%;
 
-    --muted: 220 13% 15%;
-    --muted-foreground: 220 9% 65%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 50 100% 60%;
 
-    --accent: 213 94% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 45 100% 45%;
+    --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
+    --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 50 100% 40%;
+    --warning-foreground: 0 0% 0%;
 
-    --border: 220 13% 20%;
-    --input: 220 13% 20%;
-    --ring: 213 94% 55%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 50 100% 50%;
   }
 }
 

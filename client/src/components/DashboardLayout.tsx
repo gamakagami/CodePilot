@@ -74,11 +74,11 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   return (
     <div className="min-h-screen bg-background">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-40 border-b border-foreground/50 bg-secondary/80 backdrop-blur supports-[backdrop-filter]:bg-secondary/60">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             <Link to="/dashboard" className="flex items-center space-x-2">
-              <Code2 className="h-6 w-6 text-primary" />
+              <Code2 className="h-6 w-6 text-foreground" />
               <span className="text-xl font-bold text-foreground">
                 CodePilot
               </span>
@@ -161,8 +161,8 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     className={cn(
                       "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-foreground text-background"
+                        : "text-foreground hover:bg-secondary"
                     )}
                   >
                     <item.icon className="h-5 w-5" />
