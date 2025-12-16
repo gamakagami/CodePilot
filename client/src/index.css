@@ -8,29 +8,29 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Yellow background, black text scheme */
-    --background: 50 100% 50%; /* vivid yellow */
+    /* Green background, black text scheme */
+    --background: 142 71% 45%; /* vibrant green */
     --foreground: 0 0% 0%; /* black */
 
-    --card: 50 100% 52%; /* slightly different yellow for separation */
+    --card: 142 71% 48%; /* slightly different green for separation */
     --card-foreground: 0 0% 0%;
 
-    --popover: 50 100% 52%;
+    --popover: 142 71% 48%;
     --popover-foreground: 0 0% 0%;
 
-    /* Primary as black to contrast on yellow surfaces */
+    /* Primary as black to contrast on green surfaces */
     --primary: 0 0% 0%;
-    --primary-foreground: 50 100% 50%;
+    --primary-foreground: 142 71% 45%;
 
-    /* Secondary/muted as lighter yellow tints */
-    --secondary: 50 100% 60%;
+    /* Secondary/muted as lighter green tints */
+    --secondary: 142 71% 55%;
     --secondary-foreground: 0 0% 0%;
 
-    --muted: 50 100% 60%;
+    --muted: 142 71% 55%;
     --muted-foreground: 0 0% 0%;
 
-    /* Accent can be a deeper yellow/orange */
-    --accent: 45 100% 45%;
+    /* Accent can be a deeper green */
+    --accent: 142 71% 35%;
     --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
@@ -39,38 +39,38 @@ All colors MUST be HSL.
     --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 50 100% 40%;
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 0%;
 
-    /* Borders and inputs slightly darker yellow for contrast */
-    --border: 45 100% 40%;
-    --input: 45 100% 40%;
+    /* Borders and inputs slightly darker green for contrast */
+    --border: 142 71% 35%;
+    --input: 142 71% 35%;
     --ring: 0 0% 0%; /* black focus ring */
 
     --radius: 0.5rem;
   }
 
   .dark {
-    /* Keep dark mode coherent: dark yellow/black inversion */
+    /* Keep dark mode coherent: dark green/black inversion */
     --background: 0 0% 0%;
-    --foreground: 50 100% 50%;
+    --foreground: 142 71% 50%;
 
     --card: 0 0% 7%;
-    --card-foreground: 50 100% 60%;
+    --card-foreground: 142 71% 55%;
 
     --popover: 0 0% 7%;
-    --popover-foreground: 50 100% 60%;
+    --popover-foreground: 142 71% 55%;
 
-    --primary: 50 100% 50%; /* yellow primary on dark */
+    --primary: 142 71% 45%; /* green primary on dark */
     --primary-foreground: 0 0% 0%;
 
     --secondary: 0 0% 12%;
-    --secondary-foreground: 50 100% 60%;
+    --secondary-foreground: 142 71% 55%;
 
     --muted: 0 0% 12%;
-    --muted-foreground: 50 100% 60%;
+    --muted-foreground: 142 71% 55%;
 
-    --accent: 45 100% 45%;
+    --accent: 142 71% 35%;
     --accent-foreground: 0 0% 0%;
 
     --destructive: 0 84% 60%;
@@ -79,12 +79,12 @@ All colors MUST be HSL.
     --success: 142 71% 35%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 50 100% 40%;
+    --warning: 38 92% 50%;
     --warning-foreground: 0 0% 0%;
 
     --border: 0 0% 20%;
     --input: 0 0% 20%;
-    --ring: 50 100% 50%;
+    --ring: 142 71% 45%;
   }
 }
 
