@@ -71,6 +71,13 @@ export interface PredictionFeatures {
   previous_failure_rate: number;
 }
 
+export interface Recommendation {
+  category: string;
+  priority: "critical" | "high" | "medium" | "low";
+  message: string;
+  details: string;
+}
+
 export interface CodeAnalysisResult {
   fileId: string;
   timestamp: string;
@@ -97,6 +104,9 @@ export interface CodeAnalysisResult {
 
   // prediction features
   predictionFeatures: PredictionFeatures;
+
+  // Recommendations for improvement
+  recommendations: Recommendation[];
 }
 
 export interface AnalysisInput {
@@ -261,6 +271,17 @@ class AnalysisService {
     );
     console.log(`Prediction features ready: module=${predictionFeatures.module_type}`);
 
+    // Step 8: Build recommendations for code improvement
+    let recommendations: Recommendation[];
+    try {
+      recommendations = this.buildRecommendations(mernPatterns, metrics, dependencies);
+      console.log(`Generated ${recommendations.length} recommendations`);
+    } catch (err: any) {
+      console.error("Recommendation generation error:", err);
+      warnings.push(`Recommendation generation failed: ${err.message}`);
+      recommendations = [];
+    }
+
     console.log(`Analysis complete with ${warnings.length} warnings`);
 
     const timestamp = new Date().toISOString();
@@ -276,7 +297,8 @@ class AnalysisService {
       similarPatterns,
       mernPatterns,
       warnings,
-      predictionFeatures
+      predictionFeatures,
+      recommendations
     };
   }
 
@@ -430,31 +452,89 @@ class AnalysisService {
   }
 
   private detectMERNPatterns(code: string, parsed: any): MERNPatterns {
-  const base = this.getDefaultMERNPatterns();
-  const potentialIssues: string[] = [];
+    const base = this.getDefaultMERNPatterns();
+    const potentialIssues: string[] = [];
 
-  const hasErrorHandling = this.checkErrorHandling(code);
-  if (!hasErrorHandling) {
-    potentialIssues.push("Missing try-catch in async functions");
+    // Error handling detection
+    const hasErrorHandling = this.checkErrorHandling(code);
+    const asyncFunctionMatches = code.match(/async\s+(function|\w+\s*[=:]\s*\(|\([^)]*\)\s*=>)/g) || [];
+    const hasAsyncFunctions = asyncFunctionMatches.length > 0;
+    const asyncFunctionCount = asyncFunctionMatches.length;
+    
+    // Promise detection
+    const hasPromises = /\.then\(|\.catch\(|Promise\.(all|race|resolve|reject)/.test(code);
+    const promiseMatches = code.match(/\.then\([^)]*\)/g) || [];
+    const catchMatches = code.match(/\.catch\([^)]*\)/g) || [];
+    const hasUnhandledPromises = promiseMatches.length > catchMatches.length;
+
+    // Express detection
+    const usesExpress = /express|Router|app\.(get|post|put|delete|patch|use)|router\.(get|post|put|delete|patch)/.test(code);
+    const usesRouterModules = /express\.Router\(\)|const\s+\w+\s*=\s*express\.Router\(\)/.test(code);
+    const hasCentralizedErrorMiddleware = /app\.use\s*\(\s*\(?\s*err\s*,\s*req\s*,\s*res\s*,\s*next/.test(code);
+    
+    // Status code detection
+    const statusCodeMatches = code.match(/\.status\s*\(\s*\d{3}\s*\)/g) || [];
+    const usesStatusCodesCorrectly = usesExpress && statusCodeMatches.length > 0;
+
+    // Validation detection
+    const hasValidation = /validator|validate|joi|zod|yup|express-validator/.test(code);
+    const validatesRequestBody = /req\.body/.test(code) && (hasValidation || /\.validate\(|\.isValid\(|\.schema/.test(code));
+    const validatesQueryParams = /req\.query/.test(code) && hasValidation;
+    
+    if (!hasValidation && /req\.body/.test(code)) {
+      potentialIssues.push("Possible missing input validation on req.body");
+    }
+
+    // MongoDB/Mongoose detection
+    const usesMongoDB = /mongodb|MongoClient|\.collection\(/.test(code);
+    const usesMongoose = /mongoose|Schema|Model|\.model\(/.test(code);
+    const hasSchemaValidation = usesMongoose && /required:\s*true|\.required\(|enum:|min:|max:|validate:/.test(code);
+    const hasIndexesDefined = usesMongoose && /\.index\(|index:\s*\{|unique:\s*true/.test(code);
+    const usesLeanQueries = usesMongoose && /\.lean\s*\(/.test(code);
+
+    // Security issue detection
+    if (/process\.env\.[A-Z_]+/.test(code) && /password|secret|key|token/.test(code.toLowerCase()) && !/\.env/.test(code)) {
+      potentialIssues.push("Possible hardcoded credentials - use environment variables");
+    }
+    
+    if (/eval\(|Function\(|setTimeout\(|setInterval\(/.test(code) && /req\.|req\.body|req\.query/.test(code)) {
+      potentialIssues.push("Possible code injection vulnerability");
+    }
+    
+    if (/console\.(log|error|warn|debug)/.test(code)) {
+      potentialIssues.push("Console statements found - consider using a logging library");
+    }
+
+    return {
+      ...base,
+      hasErrorHandling,
+      hasValidation,
+      usesMongoDB,
+      usesExpress,
+      potentialIssues,
+      
+      // Async patterns
+      hasAsyncFunctions,
+      asyncFunctionCount,
+      hasPromises,
+      hasUnhandledPromises,
+      
+      // Express patterns
+      usesRouterModules,
+      hasCentralizedErrorMiddleware,
+      usesStatusCodesCorrectly,
+      
+      // Mongoose patterns
+      usesMongoose,
+      hasSchemaValidation,
+      hasIndexesDefined,
+      usesLeanQueries,
+      
+      // Validation patterns
+      validatesRequestBody,
+      validatesQueryParams
+    };
   }
-
-  const hasValidation = /validator|validate|joi|zod|yup/.test(code);
-  if (!hasValidation && /req\.body/.test(code)) {
-    potentialIssues.push("Possible missing input validation on req.body");
-  }
-
-  const usesMongoDB = /mongoose|mongodb|Schema|Model/.test(code);
-  const usesExpress = /express|Router|app\.(get|post|put|delete)/.test(code);
-
-  return {
-    ...base,
-    hasErrorHandling,
-    hasValidation,
-    usesMongoDB,
-    usesExpress,
-    potentialIssues
-  };
-}
 
 
   private checkErrorHandling(code: string): boolean {
@@ -500,6 +580,195 @@ class AnalysisService {
     validatesQueryParams: false
   };
 }
+
+  /**
+   * Build actionable recommendations based on analysis results
+   */
+  private buildRecommendations(
+    patterns: MERNPatterns,
+    metrics: CodeMetrics,
+    dependencies: DependencyInfo
+  ): Recommendation[] {
+    const recommendations: Recommendation[] = [];
+
+    // Error handling recommendations
+    if (!patterns.hasErrorHandling && patterns.hasAsyncFunctions) {
+      recommendations.push({
+        category: "error_handling",
+        priority: "high",
+        message: "Add try-catch blocks to async functions",
+        details: `Found ${patterns.asyncFunctionCount} async functions without proper error handling`
+      });
+    }
+
+    if (patterns.hasUnhandledPromises) {
+      recommendations.push({
+        category: "error_handling",
+        priority: "high",
+        message: "Handle promise rejections",
+        details: "Unhandled promises can crash your application"
+      });
+    }
+
+    // Validation recommendations
+    if (!patterns.hasValidation) {
+      recommendations.push({
+        category: "validation",
+        priority: "high",
+        message: "Add input validation",
+        details: "Use libraries like Joi, Zod, or express-validator"
+      });
+    }
+
+    if (!patterns.validatesRequestBody) {
+      recommendations.push({
+        category: "validation",
+        priority: "medium",
+        message: "Validate request body parameters",
+        details: "Prevent invalid data from reaching your business logic"
+      });
+    }
+
+    // Express recommendations
+    if (patterns.usesExpress && !patterns.hasCentralizedErrorMiddleware) {
+      recommendations.push({
+        category: "express",
+        priority: "medium",
+        message: "Implement centralized error handling middleware",
+        details: "Use app.use((err, req, res, next) => {...}) at the end of middleware chain"
+      });
+    }
+
+    if (patterns.usesExpress && !patterns.usesStatusCodesCorrectly) {
+      recommendations.push({
+        category: "express",
+        priority: "low",
+        message: "Use explicit HTTP status codes",
+        details: "Always call res.status(code) before sending responses"
+      });
+    }
+
+    if (patterns.usesExpress && !patterns.usesRouterModules) {
+      recommendations.push({
+        category: "express",
+        priority: "low",
+        message: "Consider using Express Router for better organization",
+        details: "Split routes into separate modules using express.Router()"
+      });
+    }
+
+    // MongoDB/Mongoose recommendations
+    if (patterns.usesMongoose && !patterns.hasSchemaValidation) {
+      recommendations.push({
+        category: "database",
+        priority: "medium",
+        message: "Add schema validation to Mongoose models",
+        details: "Use built-in validators like required, min, max, enum"
+      });
+    }
+
+    if (patterns.usesMongoose && !patterns.hasIndexesDefined) {
+      recommendations.push({
+        category: "database",
+        priority: "medium",
+        message: "Define indexes for frequently queried fields",
+        details: "Improve query performance with proper indexing"
+      });
+    }
+
+    if (patterns.usesMongoDB && !patterns.usesLeanQueries) {
+      recommendations.push({
+        category: "database",
+        priority: "low",
+        message: "Consider using .lean() for read-only queries",
+        details: "Improve performance by returning plain JavaScript objects"
+      });
+    }
+
+    // Complexity recommendations
+    if (metrics.cyclomaticComplexity > 20) {
+      recommendations.push({
+        category: "code_quality",
+        priority: "high",
+        message: "Reduce cyclomatic complexity",
+        details: `Complexity is ${metrics.cyclomaticComplexity} (very high). Consider breaking down complex functions into smaller, more manageable pieces.`
+      });
+    } else if (metrics.cyclomaticComplexity > 10) {
+      recommendations.push({
+        category: "code_quality",
+        priority: "medium",
+        message: "Consider reducing cyclomatic complexity",
+        details: `Complexity is ${metrics.cyclomaticComplexity} (high). Simplify logic or extract helper functions.`
+      });
+    }
+
+    // Dependency cycle recommendations
+    if (dependencies.hasCycles) {
+      recommendations.push({
+        category: "architecture",
+        priority: "high",
+        message: "Resolve circular dependencies",
+        details: "Circular dependencies can lead to tight coupling and make code harder to maintain. Refactor to break the cycle."
+      });
+    }
+
+    // Large function recommendations
+    if (metrics.avgFunctionLength > 50) {
+      recommendations.push({
+        category: "code_quality",
+        priority: "medium",
+        message: "Functions are too long on average",
+        details: `Average function length is ${metrics.avgFunctionLength} lines. Consider breaking large functions into smaller, single-purpose functions.`
+      });
+    }
+
+    // Security recommendations from potentialIssues
+    for (const issue of patterns.potentialIssues) {
+      let priority: "critical" | "high" | "medium" | "low" = "medium";
+      let category = "general";
+
+      if (issue.includes("injection")) {
+        priority = "critical";
+        category = "security";
+      } else if (issue.includes("credentials")) {
+        priority = "critical";
+        category = "security";
+      } else if (issue.includes("console.log")) {
+        priority = "low";
+        category = "logging";
+      }
+
+      recommendations.push({
+        category,
+        priority,
+        message: issue,
+        details: this.getIssueDetails(issue)
+      });
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Get detailed explanation for specific issues
+   */
+  private getIssueDetails(issue: string): string {
+    const detailsMap: { [key: string]: string } = {
+      "injection": "Parameterize queries and use ORM methods to prevent injection attacks",
+      "credentials": "Move sensitive data to environment variables using .env files",
+      "console.log": "Use a proper logging library like Winston or Pino",
+      "validation": "Validate all user inputs before processing",
+      "status code": "Be explicit about HTTP status codes for better API clarity"
+    };
+
+    for (const [key, details] of Object.entries(detailsMap)) {
+      if (issue.toLowerCase().includes(key)) {
+        return details;
+      }
+    }
+
+    return "Review and address this issue to improve code quality";
+  }
 
 }
 

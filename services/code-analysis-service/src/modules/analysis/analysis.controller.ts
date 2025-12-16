@@ -108,11 +108,11 @@ class AnalysisController {
               validatesQueryParams: result.mernPatterns.validatesQueryParams
             },
 
-            // Issues and warnings
-            potentialIssues: result.mernPatterns.potentialIssues,
-            issueCount: result.mernPatterns.potentialIssues.length,
-            severity: this.assessIssueSeverity(result.mernPatterns.potentialIssues)
-          },
+          // Issues and warnings
+          potentialIssues: result.mernPatterns.potentialIssues,
+          issueCount: result.mernPatterns.potentialIssues.length,
+          severity: this.assessIssueSeverity(result.mernPatterns.potentialIssues)
+        },
 
           // Code similarity
           similarPatterns: result.similarPatterns.map(pattern => ({
@@ -127,6 +127,11 @@ class AnalysisController {
           // Analysis warnings
           warnings: result.warnings,
           hasWarnings: result.warnings.length > 0,
+
+          // Recommendations for improvement
+          recommendations: result.recommendations,
+          recommendationCount: result.recommendations.length,
+          highPriorityRecommendations: result.recommendations.filter(r => r.priority === 'high' || r.priority === 'critical').length,
 
           // Overall quality score
           qualityScore: this.calculateQualityScore(result)
