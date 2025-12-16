@@ -37,6 +37,7 @@ export interface PullRequestDetail {
   
   // Comments
   reviewComments: {
+    id: number;
     file: string;
     line: number;
     comment: string;

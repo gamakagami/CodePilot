@@ -17,11 +17,25 @@ export class OrchestratorService {
   
   try {
     console.log("🚀 Starting PR analysis pipeline...");
+
+     // 🔍 DIAGNOSTIC: Log the incoming request
+  console.log('📥 [ORCHESTRATOR] Received analysis request:');
+  console.log('   - User ID:', userId);
+  console.log('   - File ID:', request.fileId);
+  console.log('   - Code length:', request.code?.length || 0);
+  console.log('   - Repository:', repositoryFullName);
+  console.log('   - PR ID:', prId);
+  console.log('   - Services config:', {
+    analysisUrl: servicesConfig.analysis.url,
+    predictionUrl: servicesConfig.prediction.url,
+    reviewUrl: servicesConfig.review.url
+  });
     
     // Step 1: Analyze code
     console.log("Step 1/3: Analyzing code structure...");
     const analysisStartTime = Date.now();
     const analysisResponse = await this.callAnalysisService(request);
+    console.log('   - Analysis response (preview):', JSON.stringify(analysisResponse, null, 2).slice(0, 1500));
     const analysisDuration = Date.now() - analysisStartTime;
     console.log(`✅ Analysis complete (${analysisDuration}ms)`);
     
@@ -31,6 +45,7 @@ export class OrchestratorService {
     const predictionResponse = await this.callPredictionService(
       analysisResponse.data
     );
+    console.log('   - Prediction response (preview):', JSON.stringify(predictionResponse, null, 2).slice(0, 1500));
     const predictionDuration = Date.now() - predictionStartTime;
     console.log(`✅ Prediction complete (${predictionDuration}ms)`);
     
@@ -157,27 +172,124 @@ export class OrchestratorService {
     }
   }
   
-  private async callAnalysisService(request: AnalyzePRRequest) {
-    const url = `${servicesConfig.analysis.url}${servicesConfig.analysis.endpoints.analyze}`;
-    
-    try {
-      const response = await axios.post(url, request, { timeout: 30000 });
-      return response.data;
-    } catch (error: any) {
-      throw new Error(`Analysis failed: ${error.response?.data?.error || error.message}`);
-    }
-  }
+  // Replace the callAnalysisService method with this improved version:
+
+private async callAnalysisService(request: AnalyzePRRequest) {
+  const url = `${servicesConfig.analysis.url}${servicesConfig.analysis.endpoints.analyze}`;
   
-  private async callPredictionService(analysis: any) {
-    const url = `${servicesConfig.prediction.url}${servicesConfig.prediction.endpoints.predict}`;
+  console.log('🔍 [ORCHESTRATOR] Calling analysis service...');
+  console.log('   - URL:', url);
+  console.log('   - Request payload:', JSON.stringify({
+    fileId: request.fileId,
+    codeLength: request.code?.length || 0,
+    developer: request.developer,
+    hasCode: !!request.code
+  }));
+  
+  try {
+    const response = await axios.post(url, request, { 
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     
-    try {
-      const response = await axios.post(url, analysis, { timeout: 30000 });
-      return response.data;
-    } catch (error: any) {
-      throw new Error(`Prediction failed: ${error.response?.data?.error || error.message}`);
+    console.log('✅ [ORCHESTRATOR] Analysis service responded successfully');
+    console.log('   - Analysis raw response keys:', Object.keys(response.data));
+    console.log('   - Analysis data preview:', JSON.stringify(response.data, null, 2).slice(0, 1500));
+    return response.data;
+    
+  } catch (error: any) {
+    console.error('❌ [ORCHESTRATOR] Analysis service error details:');
+    
+    if (error.response) {
+      // Server responded with error status
+      console.error('   - Status:', error.response.status);
+      console.error('   - Status Text:', error.response.statusText);
+      console.error('   - Response Data:', JSON.stringify(error.response.data, null, 2));
+      console.error('   - Headers:', error.response.headers);
+      
+      const errorMessage = error.response.data?.error 
+        || error.response.data?.message 
+        || error.response.statusText 
+        || 'Unknown server error';
+      
+      throw new Error(`Analysis service error (${error.response.status}): ${errorMessage}`);
+      
+    } else if (error.request) {
+      // Request made but no response received
+      console.error('   - No response received from analysis service');
+      console.error('   - Request config:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        timeout: error.config?.timeout
+      });
+      
+      throw new Error(`Analysis service unavailable: No response received. Is the service running at ${url}?`);
+      
+    } else if (error.code === 'ECONNREFUSED') {
+      // Connection refused
+      console.error('   - Connection refused');
+      throw new Error(`Cannot connect to analysis service at ${url}. Is the service running?`);
+      
+    } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNABORTED') {
+      // Timeout
+      console.error('   - Request timeout');
+      throw new Error(`Analysis service timeout after 30s`);
+      
+    } else {
+      // Something else happened
+      console.error('   - Error type:', error.constructor.name);
+      console.error('   - Error code:', error.code);
+      console.error('   - Error message:', error.message);
+      console.error('   - Full error:', error);
+      
+      throw new Error(`Analysis request failed: ${error.message}`);
     }
   }
+}
+
+// Also improve the other service calls similarly:
+
+private async callPredictionService(analysis: any) {
+  const url = `${servicesConfig.prediction.url}${servicesConfig.prediction.endpoints.predict}`;
+  
+  console.log('🔍 [ORCHESTRATOR] Calling prediction service...');
+  console.log('   - URL:', url);
+  
+  try {
+    const response = await axios.post(url, analysis, { 
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('✅ [ORCHESTRATOR] Prediction service responded successfully');
+    console.log('   - Prediction raw response keys:', Object.keys(response.data));
+    console.log('   - Prediction data preview:', JSON.stringify(response.data, null, 2).slice(0, 1500));
+    return response.data;
+    
+  } catch (error: any) {
+    console.error('❌ [ORCHESTRATOR] Prediction service error:');
+    
+    if (error.response) {
+      console.error('   - Status:', error.response.status);
+      console.error('   - Data:', error.response.data);
+      
+      const errorMessage = error.response.data?.error 
+        || error.response.data?.message 
+        || 'Unknown error';
+      
+      throw new Error(`Prediction service error (${error.response.status}): ${errorMessage}`);
+      
+    } else if (error.request) {
+      throw new Error(`Prediction service unavailable at ${url}`);
+    } else {
+      throw new Error(`Prediction request failed: ${error.message}`);
+    }
+  }
+}
   
   private async callReviewService(analysis: any, prediction: any) {
   const url = `${servicesConfig.review.url}${servicesConfig.review.endpoints.review}`;

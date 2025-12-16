@@ -422,50 +422,68 @@ function PullRequest() {
                   <CardTitle>AI Review</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {aiComments.map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="space-y-2 pb-4 border-b border-border last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-start space-x-2">
-                        {comment.type === "warning" && (
-                          <AlertTriangle className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
-                        )}
-                        {comment.type === "suggestion" && (
-                          <Lightbulb className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                        )}
-                        {comment.type === "good" && (
-                          <CheckCircle className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 space-y-2">
-                          <div>
-                            <span className="text-xs font-mono text-muted-foreground">
-                              {comment.file}:{comment.line}
-                            </span>
-                          </div>
-                          <p className="text-sm text-foreground">
-                            {comment.comment}
-                          </p>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2"
-                            >
-                              <ThumbsUp className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2"
-                            >
-                              <ThumbsDown className="h-3 w-3" />
-                            </Button>
+                  {/* Show review summary if available */}
+                  {data?.analysisSummary && (
+                    <div className="pb-4 border-b border-border">
+                      <p className="text-sm text-foreground whitespace-pre-wrap">
+                        {data.analysisSummary}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Show review comments */}
+                  {aiComments.length > 0 ? (
+                    aiComments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className="space-y-2 pb-4 border-b border-border last:border-0 last:pb-0"
+                      >
+                        <div className="flex items-start space-x-2">
+                          {comment.type === "warning" && (
+                            <AlertTriangle className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
+                          )}
+                          {comment.type === "suggestion" && (
+                            <Lightbulb className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          )}
+                          {comment.type === "good" && (
+                            <CheckCircle className="h-4 w-4 text-success mt-0.5 flex-shrink-0" />
+                          )}
+                          <div className="flex-1 space-y-2">
+                            <div>
+                              <span className="text-xs font-mono text-muted-foreground">
+                                {comment.file}:{comment.line}
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground whitespace-pre-wrap">
+                              {comment.comment}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
+                                <ThumbsUp className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2"
+                              >
+                                <ThumbsDown className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-4">
+                      {data?.analysisSummary 
+                        ? "No specific issues found. Review summary above."
+                        : "No review comments available yet."}
                     </div>
-                  ))}
+                  )}
                 </CardContent>
               </Card>
               <Card>

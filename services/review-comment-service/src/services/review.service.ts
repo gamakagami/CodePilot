@@ -198,15 +198,31 @@ ${(warnings?.length ?? 0) > 0
 
 # INSTRUCTIONS
 
-1. **Be Specific**: Reference actual metrics, function names, import statements, and patterns from the analysis above
-2. **Critical Issues**: Only include issues that will cause runtime failures or security vulnerabilities
-3. **Best Practices**: Focus on improvements based on actual code characteristics
-4. **Use Context**: Incorporate information from similar code patterns, dependencies, and prediction features
-5. **File-Specific**: Always mention "${analysis.fileId}" when describing fixes
-6. **Severity Mapping**:
+1. **Be Context-Aware**: Only mention issues and suggestions that are RELEVANT to the actual code:
+   - If there are NO FUNCTIONS (functionCount = 0), DO NOT mention error handling, input validation, async functions, or function-related improvements
+   - If there are NO IMPORTS, DO NOT mention dependency-related issues unless circular dependencies exist
+   - If this is a documentation/config file (README, .json, .md, etc.), focus on documentation quality, not code patterns
+   - Only suggest error handling if there are actual async functions that need it
+   - Only suggest input validation if there are functions that process user input (req.body, query params, etc.)
+
+2. **Be Specific**: Reference actual metrics, function names, import statements, and patterns from the analysis above. If a metric is 0 or empty, don't suggest improvements for it.
+
+3. **Critical Issues**: Only include issues that will cause runtime failures or security vulnerabilities AND are applicable to the actual code structure
+
+4. **Best Practices**: Focus ONLY on improvements based on actual code characteristics. If the code has no functions, don't suggest function-level improvements.
+
+5. **Summary Guidelines**: 
+   - If there are no functions: State that clearly and focus on what the file actually contains (imports, exports, configuration, etc.)
+   - If there are no imports: Don't mention dependency management
+   - If it's a simple file with no complexity: Don't mention complexity reduction
+   - Match the summary to what's actually in the code, not generic templates
+
+6. **File-Specific**: Always mention "${analysis.fileId}" when describing fixes
+
+7. **Severity Mapping**:
    - critical: Security vulnerabilities, unhandled promises causing crashes, injection risks
-   - high: Missing error handling in async code, missing validation on user input
-   - medium: Missing status codes, console.log usage, moderate complexity
+   - high: Missing error handling in async code (ONLY if async functions exist), missing validation on user input (ONLY if functions process input)
+   - medium: Missing status codes (ONLY if Express routes exist), console.log usage, moderate complexity (ONLY if complexity > 15)
    - low: Code style issues, minor improvements
 
 # OUTPUT FORMAT
@@ -306,10 +322,17 @@ CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
   buildBestPracticesTemplate(analysis: CodeAnalysisResult): string {
     const practices: string[] = [];
     const functions = analysis.functions ?? [];
+    const functionCount = analysis.metrics.functionCount ?? 0;
     const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
 
-    // Validation
-    if (!analysis.mernPatterns.hasValidation) {
+    // Only suggest validation if there are functions that might process input
+    const hasFunctionsThatProcessInput = functionCount > 0 && (
+      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
+      analysis.mernPatterns.usesExpress
+    );
+
+    // Validation - only if there are functions that process input
+    if (!analysis.mernPatterns.hasValidation && hasFunctionsThatProcessInput) {
       practices.push(`{
         "category": "Validation",
         "priority": "high",
@@ -330,8 +353,8 @@ CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
       }`);
     }
 
-    // Specific validation issues
-    if (!analysis.mernPatterns.validatesRequestBody && /req\.body/.test(functions.join(' '))) {
+    // Specific validation issues - only if there are functions that use req.body
+    if (functionCount > 0 && !analysis.mernPatterns.validatesRequestBody && /req\.body/.test(functions.join(' '))) {
       practices.push(`{
         "category": "Validation",
         "priority": "high",
@@ -350,8 +373,8 @@ CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
       }`);
     }
 
-    // Express patterns
-    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
+    // Express patterns - only if Express is actually used
+    if (analysis.mernPatterns.usesExpress && functionCount > 0 && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
       practices.push(`{
         "category": "Express",
         "priority": "medium",
@@ -372,7 +395,8 @@ CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
       }`);
     }
 
-    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.usesStatusCodesCorrectly) {
+    // Status codes - only if Express routes exist
+    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.usesStatusCodesCorrectly) {
       practices.push(`{
         "category": "Express",
         "priority": "medium",
@@ -432,8 +456,8 @@ CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
       }`);
     }
 
-    // Complexity
-    if (analysis.metrics.cyclomaticComplexity > 15) {
+    // Complexity - only if there are functions with complexity
+    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
       practices.push(`{
         "category": "Code Quality",
         "priority": "${analysis.metrics.cyclomaticComplexity > 20 ? 'high' : 'medium'}",
@@ -499,29 +523,41 @@ CRITICAL: Return ONLY the JSON object. No markdown, no additional text.`;
 
   buildRecommendationsTemplate(analysis: CodeAnalysisResult, prediction: any): string {
     const recs: string[] = [];
+    const functionCount = analysis.metrics.functionCount ?? 0;
+    const functions = analysis.functions ?? [];
 
     if (prediction.will_fail) {
       recs.push(`"⚠️ CRITICAL: ML predicts failure - ${prediction.reasoning || 'review code carefully'}"`);
     }
 
     const potentialIssues = analysis.mernPatterns?.potentialIssues ?? [];
-if (potentialIssues.length > 0) {
-  recs.push(`"🎯 PRIORITY: Address ${potentialIssues.length} detected issue${potentialIssues.length !== 1 ? 's' : ''}"`);
-}
+    if (potentialIssues.length > 0) {
+      recs.push(`"🎯 PRIORITY: Address ${potentialIssues.length} detected issue${potentialIssues.length !== 1 ? 's' : ''}"`);
+    }
 
-    if (!analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
+    // Only suggest error handling if there are async functions
+    if (functionCount > 0 && !analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
       recs.push(`"🎯 PRIORITY: Add error handling to ${analysis.mernPatterns.asyncFunctionCount} async function${analysis.mernPatterns.asyncFunctionCount !== 1 ? 's' : ''}"`);
     }
 
-    if (!analysis.mernPatterns.hasValidation) {
+    // Only suggest validation if there are functions that process input
+    const hasFunctionsThatProcessInput = functionCount > 0 && (
+      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
+      analysis.mernPatterns.usesExpress
+    );
+    if (hasFunctionsThatProcessInput && !analysis.mernPatterns.hasValidation) {
       recs.push(`"🎯 PRIORITY: Implement input validation before deployment"`);
     }
 
-    if (analysis.metrics.cyclomaticComplexity > 15) {
+    // Only suggest complexity reduction if there are functions with high complexity
+    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
       recs.push(`"💡 SUGGESTION: Refactor to reduce complexity from ${analysis.metrics.cyclomaticComplexity} to <15"`);
     }
 
-    recs.push(`"✅ Ensure test coverage for ${analysis.fileId} before merging"`);
+    // Only suggest test coverage if there's actual code to test
+    if (functionCount > 0) {
+      recs.push(`"✅ Ensure test coverage for ${analysis.fileId} before merging"`);
+    }
 
     return recs.join(',\n    ');
   },
@@ -566,16 +602,25 @@ if (potentialIssues.length > 0) {
 
   buildImprovementsTemplate(analysis: CodeAnalysisResult): string {
     const improvements: string[] = [];
+    const functionCount = analysis.metrics.functionCount ?? 0;
+    const functions = analysis.functions ?? [];
 
-    if (!analysis.mernPatterns.hasErrorHandling) {
+    // Only suggest error handling if there are async functions
+    if (functionCount > 0 && !analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
       improvements.push(`"Error Handling: Add try-catch to ${analysis.mernPatterns.asyncFunctionCount} async functions"`);
     }
 
-    if (!analysis.mernPatterns.hasValidation) {
+    // Only suggest validation if there are functions that process input
+    const hasFunctionsThatProcessInput = functionCount > 0 && (
+      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
+      analysis.mernPatterns.usesExpress
+    );
+    if (hasFunctionsThatProcessInput && !analysis.mernPatterns.hasValidation) {
       improvements.push(`"Validation: Implement input validation with Joi or Zod"`);
     }
 
-    if (analysis.metrics.cyclomaticComplexity > 15) {
+    // Only suggest complexity reduction if there are functions with high complexity
+    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
       improvements.push(`"Complexity: Reduce from ${analysis.metrics.cyclomaticComplexity} to <15"`);
     }
 
@@ -583,7 +628,8 @@ if (potentialIssues.length > 0) {
       improvements.push(`"Architecture: Resolve circular dependencies"`);
     }
 
-    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
+    // Only suggest Express improvements if Express is used and there are functions
+    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
       improvements.push(`"Express: Add centralized error handling middleware"`);
     }
 
@@ -591,7 +637,8 @@ if (potentialIssues.length > 0) {
       improvements.push(`"Database: Define indexes on frequently queried fields"`);
     }
 
-    if (improvements.length === 0) {
+    // Only suggest testing if there's actual code to test
+    if (improvements.length === 0 && functionCount > 0) {
       improvements.push(`"Testing: Add more test coverage"`);
     }
 
@@ -804,7 +851,45 @@ if (potentialIssues.length > 0) {
     } else if (isDocFile) {
       summary = `Documentation/config file ${analysis.fileId} updated. Low-risk changes. ${issues.length > 0 ? `${issues.length} improvement${issues.length !== 1 ? 's' : ''} suggested.` : 'No issues found.'}`;
     } else {
-      summary = `Analysis of ${analysis.fileId} (${analysis.metrics.totalLines} lines, ${analysis.metrics.functionCount} functions, complexity: ${analysis.metrics.cyclomaticComplexity}). ${prediction.will_fail ? '⚠️ ML predicts FAILURE' : '✓ ML predicts SUCCESS'} (${(prediction.failure_probability * 100).toFixed(1)}% failure probability). ${issues.length} critical issue${issues.length !== 1 ? 's' : ''} found. ${bestPractices.length} improvement${bestPractices.length !== 1 ? 's' : ''} recommended. Quality score: ${this.calculateQualityScore(analysis)}/100.`;
+      // Build context-aware summary based on what's actually in the code
+      const functionCount = analysis.metrics.functionCount ?? 0;
+      const hasFunctions = functionCount > 0;
+      const hasImports = (analysis.imports?.length ?? 0) > 0;
+      
+      let summaryParts: string[] = [];
+      
+      // File description
+      if (!hasFunctions) {
+        summaryParts.push(`The ${analysis.fileId} file is a simple ${analysis.metrics.totalLines}-line module with no functions`);
+        if (!hasImports) {
+          summaryParts.push(`no imports`);
+        } else {
+          summaryParts.push(`${analysis.metrics.importCount} import${analysis.metrics.importCount !== 1 ? 's' : ''}`);
+        }
+        summaryParts.push(`and no dependencies`);
+      } else {
+        summaryParts.push(`Analysis of ${analysis.fileId} (${analysis.metrics.totalLines} lines, ${functionCount} function${functionCount !== 1 ? 's' : ''}`);
+        if (analysis.metrics.cyclomaticComplexity > 0) {
+          summaryParts.push(`complexity: ${analysis.metrics.cyclomaticComplexity}`);
+        }
+        summaryParts.push(`)`);
+      }
+      
+      // Prediction
+      summaryParts.push(`${prediction.will_fail ? '⚠️ ML predicts FAILURE' : '✓ ML predicts SUCCESS'} (${(prediction.failure_probability * 100).toFixed(1)}% failure probability)`);
+      
+      // Only mention issues/improvements if they're relevant
+      if (issues.length > 0) {
+        summaryParts.push(`${issues.length} issue${issues.length !== 1 ? 's' : ''} found`);
+      }
+      if (bestPractices.length > 0) {
+        summaryParts.push(`${bestPractices.length} improvement${bestPractices.length !== 1 ? 's' : ''} recommended`);
+      }
+      
+      // Quality score
+      summaryParts.push(`Quality score: ${this.calculateQualityScore(analysis)}/100`);
+      
+      summary = summaryParts.join('. ') + '.';
     }
 
     console.log('🔍 [FEEDBACK SERVICE] Fallback complete - Issues:', issues.length, 'Best Practices:', bestPractices.length);
@@ -959,8 +1044,8 @@ app.post('/users', async (req, res) => {
       });
     }
 
-    // Express error middleware
-    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
+    // Express error middleware - only if Express is used and there are functions
+    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.hasCentralizedErrorMiddleware) {
       practices.push({
         category: "Express",
         priority: "medium",
@@ -989,8 +1074,8 @@ app.post('/users', async (req, res) => {
       });
     }
 
-    // Status codes
-    if (analysis.mernPatterns.usesExpress && !analysis.mernPatterns.usesStatusCodesCorrectly) {
+    // Status codes - only if Express routes exist
+    if (functionCount > 0 && analysis.mernPatterns.usesExpress && !analysis.mernPatterns.usesStatusCodesCorrectly) {
       practices.push({
         category: "Express",
         priority: "medium",
@@ -1067,8 +1152,9 @@ app.post('/users', async (req, res) => {
       });
     }
 
-    // Complexity
-    if (analysis.metrics.cyclomaticComplexity > 15) {
+    // Complexity - only if there are functions with complexity
+    const functionCount = analysis.metrics.functionCount ?? 0;
+    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
       practices.push({
         category: "Code Quality",
         priority: analysis.metrics.cyclomaticComplexity > 20 ? "high" : "medium",
@@ -1195,21 +1281,29 @@ app.post('/users', async (req, res) => {
       );
     }
 
-    // Specific patterns
-    if (!analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
+    // Specific patterns - only if relevant
+    const functionCount = analysis.metrics.functionCount ?? 0;
+    const functions = analysis.functions ?? [];
+    
+    if (functionCount > 0 && !analysis.mernPatterns.hasErrorHandling && analysis.mernPatterns.hasAsyncFunctions && analysis.mernPatterns.asyncFunctionCount > 0) {
       recs.push(
         `🎯 PRIORITY: Add error handling to ${analysis.mernPatterns.asyncFunctionCount} async function${analysis.mernPatterns.asyncFunctionCount !== 1 ? 's' : ''} in ${analysis.fileId}`
       );
     }
 
-    if (!analysis.mernPatterns.hasValidation) {
+    // Only suggest validation if there are functions that process input
+    const hasFunctionsThatProcessInput = functionCount > 0 && (
+      functions.some(fn => /req\.body|req\.query|req\.params/.test(fn)) ||
+      analysis.mernPatterns.usesExpress
+    );
+    if (hasFunctionsThatProcessInput && !analysis.mernPatterns.hasValidation) {
       recs.push(
         `🎯 PRIORITY: Implement input validation in ${analysis.fileId} before deployment`
       );
     }
 
-    // Medium priority suggestions
-    if (analysis.metrics.cyclomaticComplexity > 15) {
+    // Medium priority suggestions - only if there are functions with high complexity
+    if (functionCount > 0 && analysis.metrics.cyclomaticComplexity > 15) {
       recs.push(
         `💡 SUGGESTION: Refactor ${analysis.fileId} to reduce complexity from ${analysis.metrics.cyclomaticComplexity} to <15`
       );

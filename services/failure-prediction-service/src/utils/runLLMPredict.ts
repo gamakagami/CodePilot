@@ -1,8 +1,32 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+/**
+ * Lazily create an Anthropic client if we have a usable API key.
+ * This avoids throwing at module import time when no key is configured.
+ */
+function createAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey || !apiKey.trim()) {
+    console.warn(
+      "[failure-prediction-service] ANTHROPIC_API_KEY is not set; " +
+        "LLM-based prediction will fall back to a safe default."
+    );
+    return null;
+  }
+
+  try {
+    return new Anthropic({ apiKey });
+  } catch (err: any) {
+    console.error(
+      "[failure-prediction-service] Failed to initialize Anthropic client:",
+      err?.message || err
+    );
+    return null;
+  }
+}
+
+const client = createAnthropicClient();
 
 /**
  * Sanitizes analysis data to remove sensitive information before sending to LLM
@@ -60,9 +84,19 @@ function sanitizeAnalysis(analysis: any): any {
 }
 
 export async function runLLMPredict(analysis: any): Promise<any> {
+  // If we couldn't create a client (no key or bad config), return a safe fallback
+  if (!client) {
+    return {
+      predicted_failure: 0,
+      failure_probability: 0.3,
+      reasoning:
+        "LLM client is not configured (missing or invalid ANTHROPIC_API_KEY); returning conservative default prediction",
+    };
+  }
+
   // Sanitize the input data
   const sanitizedData = sanitizeAnalysis(analysis);
-  
+
   const prompt = `You are a code analyzer that predicts if MERN stack code changes will cause failures.
 
 SANITIZED ANALYSIS DATA (no source code included):
@@ -149,68 +183,87 @@ RULES:
 
 Now analyze the metadata and make your prediction:`;
 
-  const response = await client.messages.create({
-    model: "claude-3-haiku-20240307",
-    max_tokens: 4096,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const block = response.content.find(b => b.type === "text");
-  if (!block || !("text" in block)) {
-    throw new Error("No valid text block returned from Claude");
-  }
-
   try {
-    // Extract and clean the response text
-    let text = block.text.trim();
-    
-    console.log("Raw LLM Response:", text);
-    
-    // Remove markdown code blocks if present
-    text = text.replace(/```json\n?/g, '').replace(/\n?```/g, '');
-    
-    // Clean up control characters and excess whitespace in the entire response
-    text = text
-      .replace(/[\n\r\t]/g, ' ')  // Replace newlines, returns, tabs with spaces
-      .replace(/\s+/g, ' ')        // Replace multiple spaces with single space
-      .trim();
-    
-    // Try to find JSON object in the text
-    const jsonMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
-    if (!jsonMatch) {
-      throw new Error(`No JSON object found in response: ${text.substring(0, 200)}...`);
+    const response = await client.messages.create({
+      model: "claude-3-haiku-20240307",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const block = response.content.find((b) => b.type === "text");
+    if (!block || !("text" in block)) {
+      throw new Error("No valid text block returned from Claude");
     }
-    
-    let jsonStr = jsonMatch[0];
-    
-    // Additional cleaning for the JSON string
-    // Fix common issues with quotes and control characters
-    jsonStr = jsonStr
-      .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ')  // Remove control characters
-      .replace(/\s+/g, ' ')  // Normalize whitespace again
-      .trim();
-    
-    console.log("Cleaned JSON string:", jsonStr);
-    
-    const parsed = JSON.parse(jsonStr);
-    
-    // Validate the response has required fields
-    if (typeof parsed.predicted_failure === 'undefined' || 
-        typeof parsed.failure_probability === 'undefined') {
-      throw new Error('Response missing required fields');
+
+    try {
+      // Extract and clean the response text
+      let text = (block as any).text?.trim?.() ?? "";
+
+      console.log("Raw LLM Response:", text);
+
+      // Remove markdown code blocks if present
+      text = text.replace(/```json\n?/g, "").replace(/\n?```/g, "");
+
+      // Clean up control characters and excess whitespace in the entire response
+      text = text
+        .replace(/[\n\r\t]/g, " ") // Replace newlines, returns, tabs with spaces
+        .replace(/\s+/g, " ") // Replace multiple spaces with single space
+        .trim();
+
+      // Try to find JSON object in the text
+      const jsonMatch = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+      if (!jsonMatch) {
+        throw new Error(
+          `No JSON object found in response: ${text.substring(0, 200)}...`
+        );
+      }
+
+      let jsonStr = jsonMatch[0];
+
+      // Additional cleaning for the JSON string
+      // Fix common issues with quotes and control characters
+      jsonStr = jsonStr
+        .replace(/[\u0000-\u001F\u007F-\u009F]/g, " ") // Remove control characters
+        .replace(/\s+/g, " ") // Normalize whitespace again
+        .trim();
+
+      console.log("Cleaned JSON string:", jsonStr);
+
+      const parsed = JSON.parse(jsonStr);
+
+      // Validate the response has required fields
+      if (
+        typeof parsed.predicted_failure === "undefined" ||
+        typeof parsed.failure_probability === "undefined"
+      ) {
+        throw new Error("Response missing required fields");
+      }
+
+      return parsed;
+    } catch (err: any) {
+      console.error("Full LLM Response:", (block as any).text);
+      console.error("Parse error:", err.message);
+
+      // Return a safe fallback
+      return {
+        predicted_failure: 0,
+        failure_probability: 0.3,
+        reasoning: "Failed to parse LLM response, defaulting to pass",
+      };
     }
-    
-    return parsed;
-    
   } catch (err: any) {
-    console.error("Full LLM Response:", block.text);
-    console.error("Parse error:", err.message);
-    
-    // Return a safe fallback
+    // Catch authentication / network errors from the Anthropic SDK itself
+    console.error(
+      "[failure-prediction-service] LLM call failed:",
+      err?.message || err
+    );
+
+    // Do NOT surface this as a 500 to the orchestrator; return a safe default
     return {
       predicted_failure: 0,
       failure_probability: 0.3,
-      reasoning: "Failed to parse LLM response, defaulting to pass"
+      reasoning:
+        "LLM prediction service error (e.g., authentication or network issue); returning conservative default prediction",
     };
   }
 }

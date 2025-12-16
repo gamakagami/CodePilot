@@ -6,8 +6,8 @@ import requireAuth from "../middleware/auth";
 
 const router = Router();
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL!;
-const USER_SERVICE_URL = process.env.USER_SERVICE_URL!;
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL;
 
 // AUTH SERVICE (public)
 router.use(
