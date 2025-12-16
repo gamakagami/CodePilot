@@ -1,44 +1,51 @@
-# Build stage
-FROM node:18-alpine AS builder
+##############################
+# 1. BUILD STAGE
+##############################
+FROM node:18-slim AS builder
 
 WORKDIR /app
 
-# Copy package files
+ARG CACHEBUST=1
+
+# Copy package files and Prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm ci
+# Install ALL dependencies (including devDependencies)
+RUN npm ci --include=dev
 
-# Copy source code
-COPY . .
-
-# Generate Prisma Client
+# Generate Prisma client
 RUN npx prisma generate
+
+# Copy the rest of the source code
+COPY . .
 
 # Build TypeScript
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine
+
+##############################
+# 2. PRODUCTION STAGE
+##############################
+FROM node:18-slim
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and Prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install production dependencies only
+# Install ONLY production dependencies
 RUN npm ci --only=production
 
-# Copy built files from builder
+# Generate Prisma client in production image
+RUN npx prisma generate
+
+# Copy built files and Prisma engine from builder
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-# Generate Prisma Client in production
-RUN npx prisma generate
-
-# Expose port
+# Expose service port
 EXPOSE 4002
 
 # Start the application

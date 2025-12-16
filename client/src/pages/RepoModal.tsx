@@ -132,7 +132,7 @@ export default function RepoModal({ open, onClose, repo }: RepoModalProps) {
                     </div>
                     <div>
                       <p className="font-medium">{pr.rating ?? "-"}</p>
-                      <p className="text-sm">Rating</p>
+                      <p className="text-muted-foreground">Rating</p>
                     </div>
                     <div>
                       <Button

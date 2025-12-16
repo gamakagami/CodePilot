@@ -1,5 +1,3 @@
-// FILE: auth-service/src/services/user.service.ts
-
 import prisma from "../models/prisma";
 
 interface GitHubUser {
@@ -26,9 +24,9 @@ export const findOrCreateGitHubUser = async (gitUser: GitHubUser) => {
         githubAccessToken: gitUser.githubAccessToken
       }
     });
-    console.log("✅ New user created in auth DB:", user.id);
+    console.log("New user created in auth DB:", user.id);
   } else {
-    console.log("✅ Existing user found in auth DB:", user.id);
+    console.log("Existing user found in auth DB:", user.id);
   }
 
   return user;

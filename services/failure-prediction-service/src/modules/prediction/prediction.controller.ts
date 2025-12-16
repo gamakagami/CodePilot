@@ -18,10 +18,12 @@ export const predictionController = {
               : result.failure_probability > 0.4
               ? "medium"
               : "low",
+          // Pass the LLM rationale so downstream services can surface issues
+          reasoning: result.reasoning,
           recommendation:
             result.predicted_failure === 1
-              ? "⚠️ High risk - Recommend additional review and testing"
-              : "✅ Low risk - Safe to proceed with standard review"
+              ? "High risk - Recommend additional review and testing"
+              : "Low risk - Safe to proceed with standard review"
         }
       });
     } catch (error: any) {

@@ -89,6 +89,7 @@ function PullRequest() {
         title: data.title,
         number: data.number,
         author: data.author,
+        repository: data.repository,
         date: data.createdAt
           ? new Date(data.createdAt).toLocaleDateString()
           : "Unknown",
@@ -176,6 +177,8 @@ function PullRequest() {
                   </h1>
                 </div>
                 <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                  <span>{prData.repository}</span>
+                  <span>•</span>
                   <span>#{prData.number}</span>
                   <span>•</span>
                   <span>by {prData.author}</span>
@@ -195,11 +198,11 @@ function PullRequest() {
                   disabled={submitMutation.isPending}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
-                  {submitMutation.isPending ? "Reanalyzing..." : "Reanalyze"}
+                  {submitMutation.isPending ? "Analyzing..." : "Analyze"}
                 </Button>
                 {(() => {
                   const githubUrl = profileData?.githubUsername
-                    ? `https://github.com/${data.author}/${data.repository}/pull/${data?.id}`
+                    ? `https://github.com/${data.author}/${data.repository}/pull/${data?.number}`
                     : undefined;
 
                   return (

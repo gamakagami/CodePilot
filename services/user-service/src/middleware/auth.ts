@@ -1,17 +1,21 @@
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { Response, NextFunction } from "express";
+import { AuthenticatedRequest, AuthenticatedUser } from "../types/authenticated-request";
 
-dotenv.config(); // <-- make sure .env is loaded
+dotenv.config();
 
-export default function authMiddleware(req: any, res: any, next: any) {
+export default function authMiddleware(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
   const authHeader = req.headers.authorization;
 
-  // No Authorization header at all
   if (!authHeader) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  // Wrong format (ex: token without 'Bearer ')
   if (!authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Invalid token format" });
   }
@@ -23,7 +27,7 @@ export default function authMiddleware(req: any, res: any, next: any) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as AuthenticatedUser;
     req.user = decoded;
     next();
   } catch (err) {

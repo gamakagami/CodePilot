@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IFeedback extends Document {
   userId: string;
   analysisId: string;
-  rating: number; // 1-5
+  rating: number;
   comment?: string;
   timestamp: Date;
 }

@@ -22,10 +22,10 @@ services:
       QSTASH_NEXT_SIGNING_KEY: ${QSTASH_NEXT_SIGNING_KEY}
       
       # Microservice URLs
-      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:5000}
-      CODE_ANALYSIS_SERVICE_URL: ${CODE_ANALYSIS_SERVICE_URL:-http://analysis-service:7000}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://auth-service:4001}
+      CODE_ANALYSIS_SERVICE_URL: ${CODE_ANALYSIS_SERVICE_URL:-http://analysis-service:5003}
       REVIEW_SERVICE_URL: ${REVIEW_SERVICE_URL:-http://review-service:6000}
-      FAILURE_PREDICTION_SERVICE_URL: ${FAILURE_PREDICTION_SERVICE_URL:-http://prediction-service:8000}
+      FAILURE_PREDICTION_SERVICE_URL: ${FAILURE_PREDICTION_SERVICE_URL:-http://prediction-service:5000}
       
       # Retry Configuration
       MAX_RETRIES: ${MAX_RETRIES:-3}

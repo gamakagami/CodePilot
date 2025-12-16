@@ -6,42 +6,40 @@ const prisma = new PrismaClient();
 
 class PredictionService {
   async predictFailure(data: PredictionInput): Promise<PredictionResult> {
-    console.log("🔮 Predicting failure with LLM for:", {
+    console.log("Predicting failure with LLM for:", {
       developer: data.developer,
       module: data.module_type,
       complexity: data.avg_function_complexity
     });
 
-    // Run LLM prediction
     const result = await runLLMPredict(data);
     console.log(
-      `✅ Prediction complete: ${result.predicted_failure ? "FAIL" : "PASS"} (${(
+      `Prediction complete: ${result.predicted_failure ? "FAIL" : "PASS"} (${(
         result.failure_probability * 100
       ).toFixed(1)}%)`
     );
 
-    // Store prediction in DB
     try {
       await prisma.prediction.create({
         data: {
           timestamp: new Date(data.timestamp),
-          developer: data.developer,
-          moduleType: data.module_type,
-          linesAdded: data.lines_added,
-          linesDeleted: data.lines_deleted,
-          filesChanged: data.files_changed,
-          avgFunctionComplexity: data.avg_function_complexity,
-          codeCoverageChange: data.code_coverage_change,
-          buildDuration: data.build_duration,
+          developer: data.developer || "unknown",
+          moduleType: data.module_type || "general",
+          linesAdded: data.lines_added || 0,
+          linesDeleted: data.lines_deleted || 0,
+          filesChanged: data.files_changed || 1,
+          codeCoverageChange: data.code_coverage_change || 0,
+          buildDuration: data.build_duration || 0,
           containsTestChanges: data.contains_test_changes === 1,
-          previousFailureRate: data.previous_failure_rate,
+          previousFailureRate: data.previous_failure_rate || 0,
           predictedFailure: result.predicted_failure === 1,
-          failureProbability: result.failure_probability
+          failureProbability: result.failure_probability,
+          avgFunctionComplexity: data.avg_function_complexity || 0
         }
       });
-      console.log("💾 Prediction stored in database");
+      console.log("Prediction stored in database");
     } catch (err: any) {
-      console.error("⚠️ Failed to store prediction:", err.message);
+      console.error("Failed to store prediction:", err.message);
     }
 
     return result;

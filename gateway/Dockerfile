@@ -3,9 +3,6 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++
-
 # Copy package files
 COPY package*.json ./
 
@@ -23,20 +20,21 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies for native modules and wget for health checks
-RUN apk add --no-cache python3 make g++ wget
+# Install wget for health checks
+RUN apk add --no-cache wget
 
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies
+# Install production dependencies only
 RUN npm ci --only=production
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
 # Expose port
-EXPOSE 5003
+EXPOSE 4000
 
 # Start the application
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/index.js"]
+

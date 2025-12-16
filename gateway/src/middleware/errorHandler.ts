@@ -1,11 +1,19 @@
 import { Request, Response, NextFunction } from "express";
 
 export function errorHandler(
-  err: any,
+  err: unknown,
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  console.error("Gateway Error:", err);
-  res.status(500).json({ error: "Internal Gateway Error" });
+  const message =
+    err instanceof Error
+      ? err.message
+      : "Unknown error";
+
+  console.error("Gateway Error:", message);
+
+  res.status(500).json({
+    error: "Internal Gateway Error",
+  });
 }

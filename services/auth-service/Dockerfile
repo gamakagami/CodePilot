@@ -1,48 +1,60 @@
-# Build stage
-FROM node:18-alpine AS builder
+##############################
+# 1. BUILD STAGE
+##############################
+FROM node:18-slim AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Prevent Docker cache issues when dependencies change
+ARG CACHEBUST=1
+
+# Copy package files first
 COPY package*.json ./
-COPY yarn.lock* ./
+COPY package-lock.json* ./
 
-# Install dependencies
-RUN yarn install --frozen-lockfile
+# Install ALL dependencies (including devDependencies)
+RUN npm ci --include=dev
 
-# Copy prisma schema
+# Copy Prisma schema
 COPY prisma ./prisma/
 
-# Generate Prisma Client
-RUN yarn prisma:dev
+# Generate Prisma client
+RUN npx prisma generate
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
 # Build TypeScript
-RUN yarn build
+RUN npm run build
 
-# Production stage
-FROM node:18-alpine
+
+
+##############################
+# 2. PRODUCTION STAGE
+##############################
+FROM node:18-slim
 
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
-COPY yarn.lock* ./
+COPY package-lock.json* ./
 
-# Install production dependencies only
-RUN yarn install --production --frozen-lockfile
+# Install ONLY production dependencies
+RUN npm ci --only=production
 
-# Copy prisma schema and generate client
+# Copy Prisma schema and generate client
 COPY prisma ./prisma/
 RUN npx prisma generate
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 
-# Expose port
+# Copy Prisma engine files
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Expose service port
 EXPOSE 4001
 
-# Start the application
+# Start the service (your entrypoint)
 CMD ["node", "dist/main.js"]

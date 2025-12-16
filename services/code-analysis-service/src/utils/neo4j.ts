@@ -5,10 +5,9 @@ if (
   !process.env.NEO4J_USER ||
   !process.env.NEO4J_PASSWORD
 ) {
-  console.warn("⚠️ Missing Neo4j credentials in .env");
+  console.warn("Missing Neo4j credentials in .env");
 }
 
-// Neo4j Desktop uses NO encryption, so we must disable it here.
 export const driver = neo4j.driver(
   process.env.NEO4J_URI!,
   neo4j.auth.basic(process.env.NEO4J_USER!, process.env.NEO4J_PASSWORD!),

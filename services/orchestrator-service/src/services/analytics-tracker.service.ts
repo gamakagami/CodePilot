@@ -53,7 +53,7 @@ export class AnalyticsTrackerService {
       
       await analytics.save();
       
-      console.log(`✅ Analytics updated for user ${userId}`);
+      console.log(`Analytics updated for user ${userId}`);
     } catch (error) {
       console.error("Failed to update analytics:", error);
     }
@@ -82,7 +82,7 @@ export class AnalyticsTrackerService {
       
       await analytics.save();
       
-      console.log(`✅ Feedback quality updated for user ${userId}`);
+      console.log(`Feedback quality updated for user ${userId}`);
     } catch (error) {
       console.error("Failed to update feedback quality:", error);
     }
@@ -109,8 +109,6 @@ export class AnalyticsTrackerService {
         : 0;
       
       // Calculate Model Accuracy
-      // Note: You'll need to track actual outcomes to calculate this properly
-      // For now, using confidence as proxy
       const totalPredictions = analyses.length;
       const correctPredictions = analyses.filter(a => {
         const confidence = a.prediction?.confidence?.toLowerCase();
@@ -156,7 +154,7 @@ export class AnalyticsTrackerService {
         { upsert: true, new: true }
       );
       
-      console.log(`✅ Analytics recalculated for user ${userId}`);
+      console.log(`Analytics recalculated for user ${userId}`);
     } catch (error) {
       console.error("Failed to recalculate analytics:", error);
       throw error;
@@ -210,7 +208,7 @@ export class AnalyticsTrackerService {
       analytics.lastUpdated = new Date();
       await analytics.save();
       
-      console.log(`✅ Prediction outcome updated for user ${userId}`);
+      console.log(`Prediction outcome updated for user ${userId}`);
     } catch (error) {
       console.error("Failed to update prediction outcome:", error);
     }

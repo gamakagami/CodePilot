@@ -1,7 +1,7 @@
 import axios from "axios";
+import { loadEnv } from "../utils/env";
 
-const USER_SERVICE_URL =
-  process.env.USER_SERVICE_URL || "http://localhost:4002";
+const env = loadEnv();
 
 export const createUserProfile = async (
   userId: string,
@@ -10,12 +10,12 @@ export const createUserProfile = async (
 ) => {
   try {
     const response = await axios.put(
-      `${USER_SERVICE_URL}/users/profile`,
+      `${env.USER_SERVICE_URL}/users/profile`,
       {
         name: githubData.name,
         email: githubData.email,
         avatarUrl: githubData.avatarUrl,
-        githubUsername: githubData.login, // ← This was correct
+        githubUsername: githubData.login,
         theme: "dark",
       },
       {
@@ -26,12 +26,12 @@ export const createUserProfile = async (
       }
     );
 
-    console.log("✅ User profile created in user-service:", response.data);
+    console.log("User profile created in user-service:", response.data);
 
     await axios.put(
-      `${USER_SERVICE_URL}/users/settings/api`,
+      `${env.USER_SERVICE_URL}/users/settings/api`,
       {
-        githubToken: githubData.githubAccessToken, // ← Add GitHub OAuth token
+        githubToken: githubData.githubAccessToken,
       },
       {
         headers: {
@@ -41,12 +41,12 @@ export const createUserProfile = async (
       }
     );
 
-    console.log("✅ GitHub token stored in user-service");
+    console.log("GitHub token stored in user-service");
 
     return response.data;
   } catch (error: any) {
     console.error(
-      "❌ Failed to create user profile:",
+      "Failed to create user profile:",
       error.response?.data || error.message
     );
     return null;

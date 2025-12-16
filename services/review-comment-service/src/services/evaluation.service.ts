@@ -23,7 +23,7 @@ export const evaluationService = {
       const pythonCmd = getPythonCommand();
       const scriptPath = path.join(__dirname, "../scripts/evaluate.py");
       
-      console.log(`📊 Evaluating review with ${pythonCmd}...`);
+      console.log(`Evaluating review with ${pythonCmd}...`);
       
       const py = spawn(pythonCmd, [
         scriptPath,
@@ -71,7 +71,7 @@ export const evaluationService = {
             return reject(new Error(result.error));
           }
           
-          console.log(`✅ Evaluation complete - BLEU: ${result.bleu?.toFixed(3)}, ROUGE-L F1: ${result.rouge?.f1?.toFixed(3)}`);
+          console.log(`Evaluation complete - BLEU: ${result.bleu?.toFixed(3)}, ROUGE-L F1: ${result.rouge?.f1?.toFixed(3)}`);
           resolve(result);
         } catch (e: any) {
           reject(new Error(`Failed to parse evaluation output: ${e.message}\nOutput: ${output}`));

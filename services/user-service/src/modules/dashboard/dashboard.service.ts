@@ -46,15 +46,14 @@ export const getDashboardData = async (userId: string): Promise<DashboardMetrics
   const modelAccuracy =
     totalEvaluated === 0 ? 0 : (correctPredictions / totalEvaluated) * 100;
 
-  // ✅ Get repositories with lastAnalyzed
   const repositories = await prisma.repository.findMany({
     where: { userProfileId: profileId },
     orderBy: { id: "desc" },
     select: {
       id: true,
       name: true,
-      lastAnalyzed: true, // ✅ Added
-      failureRate: true,  // ✅ Added
+      lastAnalyzed: true,
+      failureRate: true,
       _count: { select: { pullRequests: true } },
       pullRequests: {
         where: { status: "open" },
@@ -69,7 +68,6 @@ export const getDashboardData = async (userId: string): Promise<DashboardMetrics
     }
   });
 
-  // ✅ Get recent pull requests with lastAnalyzed
   const recentPullRequests = await prisma.pullRequest.findMany({
     where: {
       repository: { userProfileId: profileId }
@@ -83,14 +81,14 @@ export const getDashboardData = async (userId: string): Promise<DashboardMetrics
       author: true,
       status: true,
       createdAt: true,
-      lastAnalyzed: true, // ✅ Added
+      lastAnalyzed: true,
       riskScore: true,
       predictedFailure: true,
       actualFailure: true,
       repository: { 
         select: { 
           name: true,
-          lastAnalyzed: true, // ✅ Added
+          lastAnalyzed: true,
         } 
       }
     }

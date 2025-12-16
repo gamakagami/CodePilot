@@ -1,9 +1,9 @@
 import axios from "axios";
 import { loadEnv } from "../utils/env";
+
 const env = loadEnv();
 
 export const getGitHubUser = async (code: string) => {
-  // 1. Get GitHub Access Token
   const tokenRes = await axios.post(
     `https://github.com/login/oauth/access_token`,
     {
@@ -17,7 +17,6 @@ export const getGitHubUser = async (code: string) => {
 
   const accessToken = tokenRes.data.access_token;
 
-  // 2. Fetch GitHub User Info
   const userRes = await axios.get("https://api.github.com/user", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -34,6 +33,6 @@ export const getGitHubUser = async (code: string) => {
     avatarUrl: userRes.data.avatar_url,
     email: primaryEmail,
     githubAccessToken: accessToken,
-    login: userRes.data.login // Add GitHub username
+    login: userRes.data.login
   };
 };
