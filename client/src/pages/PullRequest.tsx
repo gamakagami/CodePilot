@@ -237,9 +237,6 @@ function PullRequest() {
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>Failure Prediction</span>
-                    <Badge variant="destructive" className="text-base">
-                      {(prData.failureProbability * 100).toFixed(0)}% Risk
-                    </Badge>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -274,18 +271,6 @@ function PullRequest() {
                         </span>
                         <div className="flex items-center space-x-3">
                           <span className="font-medium">{item.value}</span>
-                          <Badge
-                            variant={
-                              item.importance === "High"
-                                ? "destructive"
-                                : item.importance === "Medium"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className="w-16 justify-center"
-                          >
-                            {item.importance}
-                          </Badge>
                         </div>
                       </div>
                     ))}
