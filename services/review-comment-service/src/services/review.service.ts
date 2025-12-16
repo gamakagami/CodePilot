@@ -258,6 +258,24 @@ Backend/API:
 
 Architecture:
 - Circular Dependencies: ${analysis.dependencies.hasCycles ? '⚠️ YES' : '✓ No'}
+- Direct Dependencies: ${analysis.dependencies.direct?.length || analysis.dependencies.directDependencies?.length || 0}
+- Reverse Dependencies: ${analysis.dependencies.reverse?.length || analysis.dependencies.reverseDependencies?.length || 0}
+
+## SIMILAR CODE PATTERNS (Pinecone Vector Search)
+${analysis.similarPatterns && analysis.similarPatterns.length > 0 ? `
+Found ${analysis.similarPatterns.length} similar code patterns in the repository:
+${analysis.similarPatterns.map((pattern: any, idx: number) => `
+${idx + 1}. Pattern ID: ${pattern.id}
+   - Similarity Score: ${pattern.similarityScore || pattern.score || 0}%
+   ${pattern.metadata ? `- Metadata: ${JSON.stringify(pattern.metadata)}` : ''}
+`).join('')}
+
+Use these similar patterns to:
+- Identify code duplication opportunities
+- Suggest consistent patterns across the codebase
+- Reference similar implementations for best practices
+- Flag inconsistencies with established patterns
+` : 'No similar patterns found in repository'}
 
 ## YOUR TASK
 Generate a comprehensive code review focusing on:
@@ -280,6 +298,8 @@ Generate a comprehensive code review focusing on:
    - Error handling patterns
    - Input validation and sanitization
    - Code organization and maintainability
+   - Code duplication (compare with similar patterns found)
+   - Consistency with similar code patterns in the repository
 
 4. **Security**:
    - Authentication/authorization issues
@@ -329,6 +349,8 @@ GUIDELINES:
 - Focus on MERN stack best practices and conventions
 - Make the PR comment friendly and encouraging
 - If code is good, say so! Don't invent issues.
+- Use similar code patterns to suggest consistency improvements or flag inconsistencies
+- Reference similar patterns when suggesting best practices or identifying duplication
 
 Return only valid JSON.`;
   },

@@ -63,9 +63,12 @@ export class OrchestratorService {
     
     let reviewData;
     try {
+      // Extract the actual analysis data from the response
+      const analysisData = analysisResponse.data || analysisResponse;
+      
       const reviewResponse = await this.callReviewService(
-        analysisResponse.data,
-        predictionResponse.data,
+        analysisData, // Pass the full analysis data structure
+        predictionResponse.data || predictionResponse,
         request.code // Pass the actual code for testing
       );
       reviewData = reviewResponse;
@@ -216,9 +219,26 @@ private async callAnalysisService(
     ? servicesConfig.analysis.endpoints.analyze
     : `/${servicesConfig.analysis.endpoints.analyze}`;
   const fullUrl = `${baseUrl}${endpoint}`;
-  console.log(`🔍 [ORCHESTRATOR] Calling analysis service at: ${fullUrl}`);
-  console.log(`🔍 [ORCHESTRATOR] Payload keys:`, Object.keys(payload));
-  console.log(`🔍 [ORCHESTRATOR] Repository Full Name:`, repositoryFullName || request.repositoryFullName || 'not provided');
+  
+  console.log(`\n📤 [ORCHESTRATOR] Sending data to CODE ANALYSIS SERVICE:`);
+  console.log(`   URL: ${fullUrl}`);
+  console.log(`   Payload structure:`, {
+    code: payload.code ? `${payload.code.length} characters` : 'missing',
+    fileId: payload.fileId,
+    developer: payload.developer,
+    repoContext: payload.repoContext ? `${payload.repoContext.length} files` : 'none',
+    repositoryFullName: payload.repositoryFullName || 'not provided',
+    linesAdded: payload.linesAdded,
+    linesDeleted: payload.linesDeleted,
+    filesChanged: payload.filesChanged,
+    codeCoverageChange: payload.codeCoverageChange,
+    buildDuration: payload.buildDuration,
+    previousFailureRate: payload.previousFailureRate
+  });
+  console.log(`   Full payload (first 500 chars of code):`, {
+    ...payload,
+    code: payload.code ? payload.code.substring(0, 500) + '...' : 'missing'
+  });
 
   const response = await axios.post(
     fullUrl, 
@@ -268,8 +288,27 @@ private async callAnalysisService(
 private async callPredictionService(analysis: any) {
   const url = `${servicesConfig.prediction.url}${servicesConfig.prediction.endpoints.predict}`;
   
-  console.log('🔍 [ORCHESTRATOR] Calling prediction service...');
-  console.log('   - URL:', url);
+  console.log(`\n📤 [ORCHESTRATOR] Sending data to FAILURE PREDICTION SERVICE:`);
+  console.log(`   URL: ${url}`);
+  console.log(`   Payload structure:`, {
+    fileId: analysis?.fileId || 'missing',
+    timestamp: analysis?.timestamp || 'missing',
+    metrics: analysis?.metrics ? {
+      totalLines: analysis.metrics.totalLines,
+      cyclomaticComplexity: analysis.metrics.cyclomaticComplexity,
+      functionCount: analysis.metrics.functionCount
+    } : 'missing',
+    mernPatterns: analysis?.mernPatterns ? Object.keys(analysis.mernPatterns) : 'missing',
+    dependencies: analysis?.dependencies ? {
+      direct: analysis.dependencies.direct?.length || 0,
+      reverse: analysis.dependencies.reverse?.length || 0,
+      hasCycles: analysis.dependencies.hasCycles
+    } : 'missing',
+    warnings: analysis?.warnings ? `${analysis.warnings.length} warnings` : 'none',
+    recommendations: analysis?.recommendations ? `${analysis.recommendations.length} recommendations` : 'none'
+  });
+  console.log(`   Full payload keys:`, Object.keys(analysis || {}));
+  console.log(`   Full payload preview:`, JSON.stringify(analysis, null, 2).substring(0, 1000));
   
   try {
     const response = await axios.post(url, analysis, { 
@@ -308,28 +347,126 @@ private async callPredictionService(analysis: any) {
   private async callReviewService(analysis: any, prediction: any, code?: string) {
   const url = `${servicesConfig.review.url}${servicesConfig.review.endpoints.review}`;
   
+  // Transform analysis service response to match review service expected format
+  // Analysis service returns: { structure: { functions, imports }, metrics: {...}, ... }
+  // Review service expects: { functions: [...], imports: [...], metrics: { functionCount, ... }, ... }
+  
+  const functions = analysis.structure?.functions || analysis.functions || [];
+  const imports = analysis.structure?.imports || analysis.imports || [];
+  
+  // Build metrics object with functionCount (review service expects this)
+  const metrics = {
+    ...(analysis.metrics || {}),
+    functionCount: analysis.structure?.functionCount || analysis.metrics?.functionCount || functions.length,
+    importCount: analysis.structure?.importCount || analysis.metrics?.importCount || imports.length
+  };
+  
+  // Transform mernPatterns from nested structure to flat structure if needed
+  let mernPatterns = analysis.mernPatterns || {};
+  if (mernPatterns.errorHandling || mernPatterns.express || mernPatterns.database) {
+    // Flatten the nested structure to match what review service might expect
+    mernPatterns = {
+      ...mernPatterns,
+      hasErrorHandling: mernPatterns.errorHandling?.hasErrorHandling || mernPatterns.hasErrorHandling || false,
+      hasValidation: mernPatterns.validation?.hasValidation || mernPatterns.hasValidation || false,
+      usesMongoDB: mernPatterns.database?.usesMongoDB || mernPatterns.usesMongoDB || false,
+      usesExpress: mernPatterns.express?.usesExpress || mernPatterns.usesExpress || false,
+      potentialIssues: mernPatterns.potentialIssues || []
+    };
+  }
+  
+  // Transform dependencies structure
+  let dependencies = analysis.dependencies || {};
+  if (dependencies.directDependencies || dependencies.reverseDependencies) {
+    dependencies = {
+      ...dependencies,
+      direct: dependencies.directDependencies || dependencies.direct || [],
+      reverse: dependencies.reverseDependencies || dependencies.reverse || [],
+      hasCycles: dependencies.hasCycles || false
+    };
+  }
+  
+  const reviewPayload = {
+    analysis: {
+      fileId: analysis.fileId,
+      timestamp: analysis.timestamp,
+      // Review service expects functions and imports at top level
+      functions: functions,
+      imports: imports,
+      metrics: metrics,
+      mernPatterns: mernPatterns,
+      dependencies: dependencies,
+      // Include Pinecone similarity insights
+      similarPatterns: analysis.similarPatterns || [],
+      warnings: analysis.warnings || [],
+      recommendations: analysis.recommendations || [],
+      qualityScore: analysis.qualityScore
+    },
+    prediction: {
+      predicted_failure: prediction.predicted_failure,
+      failure_probability: prediction.failure_probability,
+      will_fail: prediction.will_fail,
+      confidence: prediction.confidence,
+      // include rationale so review service can produce issues
+      reasoning: prediction.reasoning
+    },
+    code: code // Pass the actual code for testing
+  };
+  
   try {
-    console.log('🔍 [ORCHESTRATOR] Calling review service...');
-    console.log(`   - Code length: ${code?.length || 0}`);
-    
-    const response = await axios.post(url, {
+    console.log(`\n📤 [ORCHESTRATOR] Sending data to REVIEW GENERATION SERVICE:`);
+    console.log(`   URL: ${url}`);
+    console.log(`   Payload structure:`, {
       analysis: {
-        fileId: analysis.fileId,
-        metrics: analysis.metrics,
-        functions: analysis.functions,
-        mernPatterns: analysis.mernPatterns,
-        dependencies: analysis.dependencies
+        fileId: reviewPayload.analysis.fileId,
+        timestamp: reviewPayload.analysis.timestamp,
+        metrics: reviewPayload.analysis.metrics ? {
+          totalLines: reviewPayload.analysis.metrics.totalLines,
+          cyclomaticComplexity: reviewPayload.analysis.metrics.cyclomaticComplexity,
+          avgFunctionLength: reviewPayload.analysis.metrics.avgFunctionLength,
+          functionCount: reviewPayload.analysis.metrics.functionCount,
+          complexityRating: reviewPayload.analysis.metrics.complexityRating
+        } : 'missing',
+        functions: Array.isArray(reviewPayload.analysis.functions) ? `${reviewPayload.analysis.functions.length} functions` : 'not an array',
+        imports: Array.isArray(reviewPayload.analysis.imports) ? `${reviewPayload.analysis.imports.length} imports` : 'not an array',
+        mernPatterns: reviewPayload.analysis.mernPatterns ? {
+          keys: Object.keys(reviewPayload.analysis.mernPatterns),
+          hasErrorHandling: reviewPayload.analysis.mernPatterns.hasErrorHandling,
+          usesExpress: reviewPayload.analysis.mernPatterns.usesExpress,
+          usesMongoDB: reviewPayload.analysis.mernPatterns.usesMongoDB
+        } : 'missing',
+        dependencies: reviewPayload.analysis.dependencies ? {
+          direct: Array.isArray(reviewPayload.analysis.dependencies.direct) ? reviewPayload.analysis.dependencies.direct.length : 0,
+          reverse: Array.isArray(reviewPayload.analysis.dependencies.reverse) ? reviewPayload.analysis.dependencies.reverse.length : 0,
+          hasCycles: reviewPayload.analysis.dependencies.hasCycles
+        } : 'missing',
+        similarPatterns: Array.isArray(reviewPayload.analysis.similarPatterns) ? {
+          count: reviewPayload.analysis.similarPatterns.length,
+          patterns: reviewPayload.analysis.similarPatterns.map((p: any) => ({
+            id: p.id,
+            similarityScore: p.similarityScore || p.score,
+            hasMetadata: !!p.metadata
+          }))
+        } : 'missing',
+        warnings: Array.isArray(reviewPayload.analysis.warnings) ? `${reviewPayload.analysis.warnings.length} warnings` : 'missing',
+        recommendations: Array.isArray(reviewPayload.analysis.recommendations) ? `${reviewPayload.analysis.recommendations.length} recommendations` : 'missing',
+        qualityScore: reviewPayload.analysis.qualityScore
       },
       prediction: {
-        predicted_failure: prediction.predicted_failure,
-        failure_probability: prediction.failure_probability,
-        will_fail: prediction.will_fail,
-        confidence: prediction.confidence,
-        // include rationale so review service can produce issues
-        reasoning: prediction.reasoning
+        predicted_failure: reviewPayload.prediction.predicted_failure,
+        failure_probability: reviewPayload.prediction.failure_probability,
+        will_fail: reviewPayload.prediction.will_fail,
+        confidence: reviewPayload.prediction.confidence,
+        reasoning: reviewPayload.prediction.reasoning ? `${reviewPayload.prediction.reasoning.substring(0, 100)}...` : 'missing'
       },
-      code: code // Pass the actual code for testing
-    }, { timeout: 60000 });
+      code: code ? `${code.length} characters` : 'missing'
+    });
+    console.log(`   Full payload preview:`, JSON.stringify({
+      ...reviewPayload,
+      code: reviewPayload.code ? reviewPayload.code.substring(0, 500) + '...' : 'missing'
+    }, null, 2).substring(0, 1500));
+    
+    const response = await axios.post(url, reviewPayload, { timeout: 60000 });
     
     console.log('🔍 [ORCHESTRATOR] Review service responded');
     console.log('   - Response keys:', Object.keys(response.data));
