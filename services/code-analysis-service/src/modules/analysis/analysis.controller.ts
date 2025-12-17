@@ -128,10 +128,10 @@ class AnalysisController {
             severity: this.assessIssueSeverity(result.mernPatterns.potentialIssues)
           },
 
-          // NEW: Contextual information for prediction service
+          // Contextual information for prediction service
           context: this.buildContext(result),
 
-          // NEW: Actual issues found by static analysis
+          // Actual issues found by static analysis
           actualIssues: this.detectActualIssues(result, code),
 
           // Code similarity
@@ -190,9 +190,9 @@ class AnalysisController {
           code: code,
           repoContext: repoContext || []
         });
-        console.log("✅ [ANALYSIS] Review complete");
+        console.log("ANALYSIS Review complete");
       } catch (error: any) {
-        console.error("⚠️ [ANALYSIS] Review generation failed:", error.message);
+        console.error("ANALYSIS Review generation failed:", error.message);
         reviewResult = {
           summary: "Review generation failed",
           prComment: "Unable to generate review",
@@ -240,7 +240,7 @@ class AnalysisController {
   };
 
   /**
-   * NEW: Build context object for prediction service
+   * Build context object for prediction service
    */
   private buildContext(result: any): any {
     // Extract variables from functions
@@ -341,7 +341,7 @@ class AnalysisController {
   }
 
   /**
-   * NEW: Detect actual issues through static analysis
+   * Detect actual issues through static analysis
    * Now works with original code for better accuracy
    */
   private detectActualIssues(result: any, originalCode: string): any {

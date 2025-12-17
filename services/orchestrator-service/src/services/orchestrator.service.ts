@@ -44,29 +44,29 @@ export class OrchestratorService {
   const startTime = Date.now();
   
   try {
-    console.log("🚀 Starting PR analysis pipeline...");
+    console.log("Starting PR analysis pipeline...");
 
     // 🔍 DIAGNOSTIC: Log context size
-    console.log('📥 [ORCHESTRATOR] Received analysis request:');
+    console.log('ORCHESTRATOR Received analysis request:');
     console.log(`   - Code length: ${request.code?.length || 0}`);
     console.log(`   - Repo Context: ${request.repoContext?.length || 0} files included`);
     
     // Single call to analysis service (which now includes prediction and review)
-    console.log("🚀 Analyzing code with prediction and review (all-in-one)...");
+    console.log("Analyzing code with prediction and review (all-in-one)...");
     const analysisStartTime = Date.now();
     
     // Pass 'request' which now contains 'repoContext' and 'repositoryFullName'
     const analysisResponse = await this.callAnalysisService(request, repositoryFullName);
     
     const analysisDuration = Date.now() - analysisStartTime;
-    console.log(`✅ Complete analysis (analysis + prediction + review) finished (${analysisDuration}ms)`);
+    console.log(`Complete analysis (analysis + prediction + review) finished (${analysisDuration}ms)`);
     
     // Extract all results from the unified response
     const analysisData = analysisResponse.data || analysisResponse;
     const predictionData = analysisData.prediction;
     const reviewData = analysisData.review;
     
-    console.log(`🔍 [ORCHESTRATOR] Unified response structure:`, {
+    console.log(`[ORCHESTRATOR] Unified response structure:`, {
       hasAnalysis: !!analysisData,
       hasPrediction: !!predictionData,
       hasReview: !!reviewData,
@@ -77,7 +77,7 @@ export class OrchestratorService {
     const totalDuration = Date.now() - startTime;
     
     // Combine results with performance metrics
-    console.log('📦 Combining all results...');
+    console.log('Combining all results...');
     const result = this.combineResults(
       analysisData,
       predictionData,
@@ -90,7 +90,7 @@ export class OrchestratorService {
       }
     );
     
-    console.log('💾 Storing analysis result...');
+    console.log('Storing analysis result...');
     // Store the results in database
     await this.storeAnalysisResult(
       userId,
@@ -108,7 +108,7 @@ export class OrchestratorService {
       result.performance.totalDuration
     );
     
-    console.log(`🎉 Pipeline complete in ${totalDuration}ms`);
+    console.log(`Pipeline complete in ${totalDuration}ms`);
     
     return {
       success: true,
@@ -116,7 +116,7 @@ export class OrchestratorService {
     };
     
   } catch (error: any) {
-    console.error("❌ Pipeline error:", error.message);
+    console.error("Pipeline error:", error.message);
     console.error("Stack trace:", error.stack);
     
     return {
@@ -205,7 +205,7 @@ private async callAnalysisService(
     : `/${servicesConfig.analysis.endpoints.analyze}`;
   const fullUrl = `${baseUrl}${endpoint}`;
   
-  console.log(`\n📤 [ORCHESTRATOR] Sending data to CODE ANALYSIS SERVICE:`);
+  console.log(`\nORCHESTRATOR Sending data to CODE ANALYSIS SERVICE:`);
   console.log(`   URL: ${fullUrl}`);
   console.log(`   Payload structure:`, {
     code: payload.code ? `${payload.code.length} characters` : 'missing',
@@ -231,7 +231,7 @@ private async callAnalysisService(
     { timeout: 60000 } // Give it more time to process context
   );
 
-  console.log(`✅ [ORCHESTRATOR] Analysis service responded successfully`);
+  console.log(`ORCHESTRATOR Analysis service responded successfully`);
   console.log(`   - Response keys:`, Object.keys(response.data || {}));
   if (response.data?.data) {
     const analysisData = response.data.data;
@@ -280,7 +280,7 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     repoContext: repoContext || null  // Include the full codebase context (unlimited, like analysis service)
   };
   
-  console.log(`\n📤 [ORCHESTRATOR] Sending data to FAILURE PREDICTION SERVICE:`);
+  console.log(`\nORCHESTRATOR Sending data to FAILURE PREDICTION SERVICE:`);
   console.log(`   URL: ${url}`);
   console.log(`   Payload structure:`, {
     fileId: analysis?.fileId || 'missing',
@@ -319,13 +319,13 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
       }
     });
     
-    console.log('✅ [ORCHESTRATOR] Prediction service responded successfully');
+    console.log('ORCHESTRATOR Prediction service responded successfully');
     console.log('   - Prediction raw response keys:', Object.keys(response.data));
     console.log('   - Prediction data preview:', JSON.stringify(response.data, null, 2).slice(0, 1500));
     return response.data;
     
   } catch (error: any) {
-    console.error('❌ [ORCHESTRATOR] Prediction service error:');
+    console.error('ORCHESTRATOR Prediction service error:');
     
     if (error.response) {
       console.error('   - Status:', error.response.status);
@@ -416,7 +416,7 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
   };
   
   try {
-    console.log(`\n📤 [ORCHESTRATOR] Sending data to REVIEW GENERATION SERVICE:`);
+    console.log(`\nORCHESTRATOR Sending data to REVIEW GENERATION SERVICE:`);
     console.log(`   URL: ${url}`);
     console.log(`   Payload structure:`, {
       analysis: {
@@ -478,54 +478,54 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     const responsePreview = JSON.stringify(response.data, null, 2).substring(0, 1000);
     console.log('   - Response structure preview:', responsePreview);
     
-    // ✅ Extract the review object based on the actual response structure
+    // Extract the review object based on the actual response structure
     let reviewData;
     
     // Check all possible structures
     if (response.data.data?.review) {
       // Structure: { success: true, data: { review: {...} } }
-      console.log('✅ [ORCHESTRATOR] Found review at: response.data.data.review');
+      console.log('ORCHESTRATOR Found review at: response.data.data.review');
       reviewData = response.data.data.review;
     } 
     else if (response.data.review) {
       // Structure: { success: true, review: {...} }
-      console.log('✅ [ORCHESTRATOR] Found review at: response.data.review');
+      console.log('ORCHESTRATOR Found review at: response.data.review');
       reviewData = response.data.review;
     } 
     else if (response.data.data && typeof response.data.data === 'object' && response.data.data.summary) {
       // Structure: { success: true, data: { summary: "...", issues: [...] } }
-      console.log('✅ [ORCHESTRATOR] Found review at: response.data.data (has summary)');
+      console.log('ORCHESTRATOR Found review at: response.data.data (has summary)');
       reviewData = response.data.data;
     } 
     else if (response.data.summary) {
       // Structure: { success: true, summary: "...", issues: [...] }
-      console.log('✅ [ORCHESTRATOR] Found review at: response.data (has summary)');
+      console.log('ORCHESTRATOR Found review at: response.data (has summary)');
       reviewData = response.data;
     } 
     else {
       // Last resort: try to use data or the whole response
-      console.warn('⚠️  [ORCHESTRATOR] Could not find review in expected locations, using fallback');
+      console.warn('ORCHESTRATOR Could not find review in expected locations, using fallback');
       reviewData = response.data.data || response.data;
     }
     
     // Validate we got something useful
     if (!reviewData || typeof reviewData !== 'object') {
-      console.error('❌ [ORCHESTRATOR] Failed to extract valid review data');
+      console.error('ORCHESTRATOR Failed to extract valid review data');
       console.error('Response was:', response.data);
       throw new Error('Review service returned invalid data structure');
     }
     
     // Check for required fields
     if (!reviewData.summary) {
-      console.warn('⚠️  [ORCHESTRATOR] Review data missing summary field');
+      console.warn('ORCHESTRATOR Review data missing summary field');
     }
     
     if (!reviewData.issues) {
-      console.warn('⚠️  [ORCHESTRATOR] Review data missing issues field, adding empty array');
+      console.warn('ORCHESTRATOR Review data missing issues field, adding empty array');
       reviewData.issues = [];
     }
     
-    console.log('✅ [ORCHESTRATOR] Review data extracted successfully:');
+    console.log('ORCHESTRATOR Review data extracted successfully:');
     console.log('   - Has summary:', !!reviewData.summary);
     console.log('   - Issues is array:', Array.isArray(reviewData.issues));
     console.log('   - Issues count:', Array.isArray(reviewData.issues) ? reviewData.issues.length : 'not an array');
@@ -537,13 +537,13 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
       console.log('   - First issue structure:');
       console.log(JSON.stringify(reviewData.issues[0], null, 2));
     } else {
-      console.log('   ℹ️  No issues in review data');
+      console.log('No issues in review data');
     }
     
     return reviewData;
     
   } catch (error: any) {
-    console.error('❌ [ORCHESTRATOR] Review service error:', error.message);
+    console.error('ORCHESTRATOR Review service error:', error.message);
     if (error.response) {
       console.error('   - Response status:', error.response.status);
       console.error('   - Response data:', error.response.data);
@@ -563,11 +563,11 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     reviewDuration: number;
   }
 ) {
-  console.log('🔍 [ORCHESTRATOR] Combining results...');
+  console.log('ORCHESTRATOR Combining results...');
   
-  // ✅ Validate inputs
+  // Validate inputs
   if (!review || typeof review !== 'object') {
-    console.error('❌ [ORCHESTRATOR] Invalid review object passed to combineResults');
+    console.error('ORCHESTRATOR Invalid review object passed to combineResults');
     throw new Error('Cannot combine results: review is invalid');
   }
   
@@ -581,7 +581,7 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     codeQuality: review.codeQuality || { score: 50, strengths: [], improvementAreas: [] }
   };
   
-  console.log('🔍 [ORCHESTRATOR] Review validation:');
+  console.log('ORCHESTRATOR Review validation:');
   console.log('   - Issues:', safeReview.issues.length);
   console.log('   - Recommendations:', safeReview.recommendations.length);
   
@@ -648,7 +648,7 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     }
   };
   
-  console.log('✅ [ORCHESTRATOR] Results combined successfully');
+  console.log('ORCHESTRATOR Results combined successfully');
   console.log('   - result.review.issues count:', result.review.issues.length);
   
   return result;
