@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import analysisService from "./analysis.service";
 import { GraphService } from "../graph/graph.service";
+import { predictFailure } from "../prediction/prediction.service";
+import { generateReview } from "../review/review.service";
 
 class AnalysisController {
   analyze = async (req: Request, res: Response) => {
@@ -56,6 +58,9 @@ class AnalysisController {
           
           // IMPORTANT: Include original code for prediction service
           originalCode: code,
+          
+          // IMPORTANT: Include repoContext so prediction service gets the same codebase
+          repoContext: repoContext || [],
           
           // Code structure
           structure: {
@@ -153,7 +158,77 @@ class AnalysisController {
         }
       };
 
-      res.status(200).json(response);
+      // Step 2: Run failure prediction (using analysis data)
+      console.log("🔮 [ANALYSIS] Running failure prediction...");
+      let predictionResult;
+      try {
+        predictionResult = await predictFailure(response.data);
+        console.log("✅ [ANALYSIS] Prediction complete");
+      } catch (error: any) {
+        console.error("⚠️ [ANALYSIS] Prediction failed:", error.message);
+        predictionResult = {
+          predicted_failure: 0,
+          failure_probability: 0.3,
+          will_fail: false,
+          confidence: "low",
+          reasoning: "Prediction service unavailable"
+        };
+      }
+
+      // Step 3: Generate review (using analysis + prediction)
+      console.log("📝 [ANALYSIS] Generating review...");
+      let reviewResult;
+      try {
+        reviewResult = await generateReview({
+          analysis: response.data,
+          prediction: {
+            will_fail: predictionResult.predicted_failure === 1 || predictionResult.will_fail === true,
+            failure_probability: predictionResult.failure_probability,
+            confidence: predictionResult.confidence || "medium",
+            reasoning: predictionResult.reasoning
+          },
+          code: code,
+          repoContext: repoContext || []
+        });
+        console.log("✅ [ANALYSIS] Review complete");
+      } catch (error: any) {
+        console.error("⚠️ [ANALYSIS] Review generation failed:", error.message);
+        reviewResult = {
+          summary: "Review generation failed",
+          prComment: "Unable to generate review",
+          riskLevel: "medium" as const,
+          shouldMerge: false,
+          shouldRequestChanges: true,
+          issues: [],
+          recommendations: ["Manual review required"],
+          codeQuality: { score: 50, strengths: [], weaknesses: [] },
+          mernSpecificFeedback: {},
+          generatedAt: new Date().toISOString()
+        };
+      }
+
+      // Combine all results
+      const combinedResponse = {
+        success: true,
+        data: {
+          ...response.data,
+          // Add prediction results
+          prediction: {
+            predicted_failure: predictionResult.predicted_failure,
+            failure_probability: predictionResult.failure_probability,
+            will_fail: predictionResult.predicted_failure === 1 || predictionResult.will_fail === true,
+            confidence: predictionResult.confidence || "medium",
+            reasoning: predictionResult.reasoning,
+            recommendation: predictionResult.predicted_failure === 1
+              ? "High risk - Recommend additional review and testing"
+              : "Low risk - Safe to proceed with standard review"
+          },
+          // Add review results
+          review: reviewResult
+        }
+      };
+
+      res.status(200).json(combinedResponse);
     } catch (error: any) {
       console.error("Analysis error:", error);
       res.status(500).json({
@@ -399,7 +474,18 @@ class AnalysisController {
 
     // Check for undefined function calls
     const functionCallMatches = originalCode.matchAll(/(\w+)\(/g);
-    const builtins = ['console', 'setTimeout', 'setInterval', 'parseInt', 'parseFloat', 'require', 'import'];
+    const builtins = [
+      // Browser/Node.js globals
+      'console', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+      'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'encodeURI', 'decodeURI',
+      'encodeURIComponent', 'decodeURIComponent', 'fetch', 'Promise', 'JSON',
+      // Node.js globals
+      'require', 'import', 'module', 'exports', 'process', 'Buffer', 'global',
+      // Common APIs
+      'alert', 'confirm', 'prompt', 'atob', 'btoa', 'URL', 'URLSearchParams',
+      // React/JSX (if in React context)
+      'React', 'ReactDOM'
+    ];
     
     for (const match of functionCallMatches) {
       const funcName = match[1];

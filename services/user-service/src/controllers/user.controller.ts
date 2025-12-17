@@ -112,14 +112,13 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     // 1. Build PR payload (diffs/metadata)
     const payload = await userService.buildPullRequestPayload(prId);
 
-    // 2. Fetch PR with Repository and its Files
+    // 2. Fetch PR with Repository and UserProfile
     const pr = await prisma.pullRequest.findUnique({
       where: { id: prId },
       include: {
         repository: { 
           include: { 
-            userProfile: true,
-            files: true // <--- Fetch the stored repo files
+            userProfile: true
           } 
         }
       }
@@ -130,28 +129,102 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     const repo = pr.repository;
     const userProfile = repo.userProfile;
 
-    // 3. Prepare Orchestrator Payload with Repository Context
+    if (!userProfile.githubToken || !userProfile.githubUsername) {
+      return res.status(400).json({ error: "GitHub credentials missing" });
+    }
+
+    // 3. Fetch ALL repository files from GitHub (full codebase, not just stored files)
+    console.log(`📥 Fetching full codebase from GitHub for ${userProfile.githubUsername}/${repo.name}...`);
+    
+    const repoInfo = await axios.get(
+      `https://api.github.com/repos/${userProfile.githubUsername}/${repo.name}`,
+      { headers: { Authorization: `Bearer ${userProfile.githubToken}` } }
+    );
+    const defaultBranch = repoInfo.data.default_branch;
+
+    const treeResponse = await axios.get(
+      `https://api.github.com/repos/${userProfile.githubUsername}/${repo.name}/git/trees/${defaultBranch}?recursive=1`,
+      { headers: { Authorization: `Bearer ${userProfile.githubToken}` } }
+    );
+
+    const allFiles = treeResponse.data.tree.filter((item: any) => item.type === "blob");
+
+    const skipDirs = [
+      "node_modules/",
+      "vendor/",
+      "dist/",
+      "build/",
+      "out/",
+      ".next/",
+      ".nuxt/",
+      ".cache/",
+      "target/",
+      "bin/",
+      "obj/",
+    ];
+
+    // Fetch file contents for all files (excluding skipped directories)
+    const repoContext: Array<{ path: string; content: string }> = [];
+    
+    for (const file of allFiles) {
+      const normalizedPath = file.path.replace(/\\/g, "/");
+
+      // Skip dependency/build directories
+      if (skipDirs.some(dir => normalizedPath.includes(dir))) {
+        continue;
+      }
+
+      // Skip hidden/system folders (but allow .env, .gitignore, etc. in root)
+      if (normalizedPath.split('/').some(part => part.startsWith('.') && part !== '.env' && part !== '.gitignore' && part !== '.eslintrc' && part !== '.prettierrc')) {
+        continue;
+      }
+
+      try {
+        const contentResponse = await axios.get(file.url, {
+          headers: { Authorization: `Bearer ${userProfile.githubToken}` },
+          timeout: 10000 // 10 second timeout per file
+        });
+
+        const raw = Buffer.from(contentResponse.data.content, "base64");
+
+        // Skip binary files
+        if (raw.includes(0x00)) {
+          continue;
+        }
+
+        const content = raw.toString("utf-8");
+        
+        repoContext.push({
+          path: file.path,
+          content: content
+        });
+      } catch (error: any) {
+        console.warn(`⚠️ Failed to fetch content for ${file.path}: ${error.message}`);
+        // Continue with other files even if one fails
+      }
+    }
+
+    console.log(`✅ Fetched ${repoContext.length} files from GitHub (full codebase)`);
+
+    // 4. Prepare Orchestrator Payload with Full Repository Context
     const orchestratorPayload = {
       ...payload,
       repositoryFullName: `${userProfile.githubUsername}/${repo.name}`,
       prId: pr.number,
       prUrl: `https://github.com/${userProfile.githubUsername}/${repo.name}/pull/${pr.number}`,
-      // ADDING REPO CONTEXT HERE:
-      repoContext: repo.files.map(f => ({
-        path: f.path,
-        content: f.content 
-      }))
+      // ADDING FULL REPO CONTEXT FROM GITHUB:
+      repoContext: repoContext
     };
 
-    console.log(`📤 Sending PR #${pr.number} with ${repo.files.length} context files...`);
+    console.log(`📤 Sending PR #${pr.number} with ${repoContext.length} context files (full codebase from GitHub)...`);
 
-    // 4. Call orchestrator
+    // 5. Call orchestrator
     const response = await axios.post(
       `${process.env.ORCHESTRATOR_URL}/api/analyze-pr`,
       orchestratorPayload,
       { 
         headers: { Authorization: req.headers.authorization },
-        timeout: 180000 // Increased to 3 mins as payload is now larger
+        timeout: 300000 // Increased to 5 mins as we're now fetching full codebase from GitHub
       }
     );
 
@@ -162,7 +235,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
       dataKeys: response.data.data ? Object.keys(response.data.data) : []
     }));
 
-    // Step 5: Validate response structure
+    // Step 6: Validate response structure
     if (!response.data) {
       throw new Error('Orchestrator returned empty response');
     }
@@ -193,7 +266,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     
     console.log('✅ Analysis stored successfully');
 
-    // Step 7: Fetch and store changed files
+    // Step 8: Fetch and store changed files (for display purposes)
     console.log('📂 Fetching changed files from GitHub...');
     
     const filesResponse = await axios.get(

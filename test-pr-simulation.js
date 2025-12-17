@@ -132,3 +132,4 @@ console.log("✅ Test simulation complete. Verify that:");
 console.log("1. Code analysis detects the undeclared variable");
 console.log("2. Review service includes it in the issues");
 console.log("3. LLM doesn't skip it in the response");
+

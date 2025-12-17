@@ -30,6 +30,12 @@ export interface ReviewRequest {
   confidence: string;
   reasoning?: string; // ✅ Add this field
 };
+  
+  // Full codebase context (like code analysis service receives)
+  repoContext?: Array<{ path: string; content: string }>;
+  
+  // Optional: Original code for testing
+  code?: string;
 }
 
 export interface BestPractice {

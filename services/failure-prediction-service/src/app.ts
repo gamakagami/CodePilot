@@ -5,7 +5,7 @@ import errorHandler from "./middleware/errorHandler";
 
 const app = express();
 
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' })); // Increase limit for large codebase context
 
 app.use("/predict", predictionRouter);
 

@@ -206,13 +206,12 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
   const existingFilesCount = profile.repositories[0]?._count.files || 0;
   
   if (existingFilesCount === 0) {
-    // Get the default branch (usually main/master)
-    const repoInfo = await axios.get(`https://api.github.com/repos/${profile.githubUsername}/${repoName}`, {
-      headers: { Authorization: `Bearer ${profile.githubToken}` }
-    });
+    const repoInfo = await axios.get(
+      `https://api.github.com/repos/${profile.githubUsername}/${repoName}`,
+      { headers: { Authorization: `Bearer ${profile.githubToken}` } }
+    );
     const defaultBranch = repoInfo.data.default_branch;
 
-    // Fetch the full recursive tree
     const treeResponse = await axios.get(
       `https://api.github.com/repos/${profile.githubUsername}/${repoName}/git/trees/${defaultBranch}?recursive=1`,
       { headers: { Authorization: `Bearer ${profile.githubToken}` } }
@@ -220,33 +219,58 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
 
     const files = treeResponse.data.tree.filter((item: any) => item.type === "blob");
 
-    // Loop through files and fetch content
+    const skipDirs = [
+      "node_modules/",
+      "vendor/",
+      "dist/",
+      "build/",
+      "out/",
+      ".next/",
+      ".nuxt/",
+      ".cache/",
+      "target/",
+      "bin/",
+      "obj/",
+    ];
+
     for (const file of files) {
-  const contentResponse = await axios.get(file.url, {
-    headers: { Authorization: `Bearer ${profile.githubToken}` }
-  });
+      const normalizedPath = file.path.replace(/\\/g, "/");
 
-  const raw = Buffer.from(contentResponse.data.content, "base64");
+      // Skip dependency/build directories
+      if (skipDirs.some(dir => normalizedPath.includes(dir))) {
+        console.log(`Skipping dependency/build file: ${file.path}`);
+        continue;
+      }
 
-  // Skip binary files (contain null bytes)
-  if (raw.includes(0x00)) {
-    console.log(`Skipping binary file: ${file.path}`);
-    continue;
+      // Skip hidden/system folders
+      if (normalizedPath.startsWith(".")) {
+        console.log(`Skipping hidden/system file: ${file.path}`);
+        continue;
+      }
+
+      const contentResponse = await axios.get(file.url, {
+        headers: { Authorization: `Bearer ${profile.githubToken}` }
+      });
+
+      const raw = Buffer.from(contentResponse.data.content, "base64");
+
+      // Skip binary files
+      if (raw.includes(0x00)) {
+        console.log(`Skipping binary file: ${file.path}`);
+        continue;
+      }
+
+      const content = raw.toString("utf-8");
+
+      await prisma.file.upsert({
+        where: { path_repositoryId: { path: file.path, repositoryId: createdRepo.id } },
+        update: { content },
+        create: { path: file.path, content, repositoryId: createdRepo.id }
+      });
+    }
   }
 
-  // Now safe to convert to UTF‑8
-  const content = raw.toString("utf-8");
-
-  await prisma.file.upsert({
-    where: { path_repositoryId: { path: file.path, repositoryId: createdRepo.id } },
-    update: { content },
-    create: { path: file.path, content, repositoryId: createdRepo.id }
-  });
-}
-
-  }
-
-  // 3. PR Sync (Always runs to keep PRs updated)
+  // 3. PR Sync
   const prsResponse = await axios.get(
     `https://api.github.com/repos/${profile.githubUsername}/${repoName}/pulls`,
     {
@@ -270,11 +294,10 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
     });
   }
 
-  // 4. Store repository context in Neo4j for better analysis
+  // 4. Store repository context in Neo4j
   try {
     const repositoryFullName = `${profile.githubUsername}/${repoName}`;
-    
-    // Get all files from the repository
+
     const repoFiles = await prisma.file.findMany({
       where: { repositoryId: createdRepo.id },
       select: { path: true, content: true }
@@ -282,32 +305,32 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
 
     if (repoFiles.length > 0) {
       console.log(`📦 Storing ${repoFiles.length} files in Neo4j for ${repositoryFullName}...`);
-      
-      // Call code-analysis-service to store context in Neo4j
-      const codeAnalysisUrl = process.env.CODE_ANALYSIS_SERVICE_URL || 'http://localhost:5003';
+
+      const codeAnalysisUrl = process.env.CODE_ANALYSIS_SERVICE_URL || "http://localhost:5003";
+
       await axios.post(
         `${codeAnalysisUrl}/analysis/store-repo-context`,
         {
           repositoryFullName,
           files: repoFiles.map(f => ({
             path: f.path,
-            content: f.content || ''
+            content: f.content || ""
           }))
         },
-        { timeout: 120000 } // 2 minutes timeout for large repositories
+        { timeout: 120000 }
       );
-      
+
       console.log(`✅ Successfully stored repository context in Neo4j`);
     } else {
       console.log(`⚠️ No files to store in Neo4j for ${repositoryFullName}`);
     }
   } catch (error: any) {
-    // Don't fail the sync if Neo4j storage fails, just log it
     console.error(`⚠️ Failed to store repository context in Neo4j:`, error.message);
   }
 
   return getProfile(userId);
 };
+
 
 export const analyzePullRequest = async (prId: number) => {
   const pr = await prisma.pullRequest.findUnique({

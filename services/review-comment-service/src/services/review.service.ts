@@ -11,6 +11,7 @@ export interface ReviewRequest {
     reasoning?: string;
   };
   code?: string;
+  repoContext?: Array<{ path: string; content: string }>;
   context?: {
     prNumber?: string;
     author?: string;
@@ -206,7 +207,7 @@ export const reviewService = {
   },
 
   buildPrompt(request: ReviewRequest, testResults?: any): string {
-    const { analysis, prediction, context } = request;
+    const { analysis, prediction, context, repoContext } = request;
     
     const fileType = this.detectFileType(analysis.fileId);
     const metrics = analysis.metrics;
@@ -260,6 +261,29 @@ Architecture:
 - Circular Dependencies: ${analysis.dependencies.hasCycles ? '⚠️ YES' : '✓ No'}
 - Direct Dependencies: ${analysis.dependencies.direct?.length || analysis.dependencies.directDependencies?.length || 0}
 - Reverse Dependencies: ${analysis.dependencies.reverse?.length || analysis.dependencies.reverseDependencies?.length || 0}
+
+## REPOSITORY CONTEXT (Full Codebase)
+${repoContext && repoContext.length > 0 ? `
+The following ${repoContext.length} file(s) from the repository are provided for context:
+${repoContext.slice(0, 20).map((file: any, idx: number) => {
+  const content = file.content || '';
+  const truncated = content.length > 2000 ? content.substring(0, 2000) + '\n... (truncated for length)' : content;
+  return `
+### File ${idx + 1}: ${file.path}
+\`\`\`
+${truncated}
+\`\`\`
+`;
+}).join('\n')}${repoContext.length > 20 ? `\n\n... and ${repoContext.length - 20} more files (omitted for brevity)` : ''}
+
+Use this repository context to:
+- Understand how the changed code integrates with the existing codebase
+- Check for consistency with established patterns and conventions
+- Identify potential integration issues or conflicts
+- Suggest improvements based on how similar code is structured elsewhere
+- Flag inconsistencies with the rest of the codebase
+- Reference actual implementations when providing code examples
+` : 'No repository context provided'}
 
 ## SIMILAR CODE PATTERNS (Pinecone Vector Search)
 ${analysis.similarPatterns && analysis.similarPatterns.length > 0 ? `

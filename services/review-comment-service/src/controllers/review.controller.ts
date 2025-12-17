@@ -6,7 +6,7 @@ export const reviewController = {
     try {
       console.log('🔍 [REVIEW CONTROLLER] Received request');
       
-      const { analysis, prediction, code } = req.body;
+      const { analysis, prediction, code, repoContext } = req.body;
 
       if (!analysis || !prediction) {
         console.error('❌ [REVIEW CONTROLLER] Missing required fields');
@@ -22,13 +22,15 @@ export const reviewController = {
       console.log('   - Prediction failure_probability:', prediction.failure_probability);
       console.log('   - Prediction reasoning:', prediction.reasoning);
       console.log('   - Code provided:', !!code, code ? `(${code.length} chars)` : '');
+      console.log('   - Repo context provided:', !!repoContext, repoContext ? `(${repoContext.length} files)` : '');
 
       console.log('🔍 [REVIEW CONTROLLER] Calling review service...');
       
       const review = await reviewService.generateReview({
         analysis,
         prediction,
-        code // Pass code for testing
+        code, // Pass code for testing
+        repoContext // Pass full codebase context
       });
 
 

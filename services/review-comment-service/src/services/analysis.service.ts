@@ -89,3 +89,4 @@ export interface CodeAnalysisResult {
   predictionFeatures: PredictionFeatures;
   recommendations?: any[];
 }
+

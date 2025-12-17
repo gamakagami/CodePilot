@@ -104,3 +104,4 @@ if (undeclared.length === 0) {
     console.log(`\n⚠️  Partial detection: setDark=${hasSetDark}, dark=${hasDark}`);
   }
 }
+

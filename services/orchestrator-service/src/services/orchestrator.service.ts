@@ -6,6 +6,34 @@ import { analyticsTrackerService } from "./analytics-tracker.service";
 
 export class OrchestratorService {
   
+  /**
+   * Limit repoContext size to prevent payload from being too large
+   * - Limits number of files (max 50)
+   * - Limits content size per file (max 5000 chars)
+   */
+  private limitRepoContext(repoContext?: Array<{ path: string; content: string }>): Array<{ path: string; content: string }> | null {
+    if (!repoContext || repoContext.length === 0) {
+      return null;
+    }
+    
+    // Limit to 50 files max
+    const limitedFiles = repoContext.slice(0, 50);
+    
+    // Limit content size per file to 5000 chars
+    const processedFiles = limitedFiles.map(file => ({
+      path: file.path,
+      content: file.content && file.content.length > 5000 
+        ? file.content.substring(0, 5000) + '\n... (truncated for size)'
+        : file.content || ''
+    }));
+    
+    if (repoContext.length > 50) {
+      console.log(`⚠️ [ORCHESTRATOR] Repo context limited from ${repoContext.length} to 50 files`);
+    }
+    
+    return processedFiles;
+  }
+  
   async analyzePR(
   request: AnalyzePRRequest, 
   userId: string,
@@ -23,70 +51,27 @@ export class OrchestratorService {
     console.log(`   - Code length: ${request.code?.length || 0}`);
     console.log(`   - Repo Context: ${request.repoContext?.length || 0} files included`);
     
-    // Step 1: Analyze code (Pass the full request including repoContext)
-    console.log("Step 1/3: Analyzing code structure with repository context...");
+    // Single call to analysis service (which now includes prediction and review)
+    console.log("🚀 Analyzing code with prediction and review (all-in-one)...");
     const analysisStartTime = Date.now();
     
     // Pass 'request' which now contains 'repoContext' and 'repositoryFullName'
     const analysisResponse = await this.callAnalysisService(request, repositoryFullName);
     
     const analysisDuration = Date.now() - analysisStartTime;
-    console.log(`✅ Analysis complete (${analysisDuration}ms)`);
-    console.log(`🔍 [ORCHESTRATOR] Analysis response structure:`, {
-      hasSuccess: 'success' in analysisResponse,
-      hasData: 'data' in analysisResponse,
-      dataKeys: analysisResponse.data ? Object.keys(analysisResponse.data) : 'no data property',
-      fullResponseKeys: Object.keys(analysisResponse)
-    });
+    console.log(`✅ Complete analysis (analysis + prediction + review) finished (${analysisDuration}ms)`);
     
-    // Step 2: Predict failure
-    console.log("Step 2/3: Predicting failure probability...");
-    const predictionStartTime = Date.now();
-    
-    // Extract the data from analysis response
+    // Extract all results from the unified response
     const analysisData = analysisResponse.data || analysisResponse;
-    console.log(`🔍 [ORCHESTRATOR] Passing to prediction service:`, {
-      hasData: !!analysisData,
+    const predictionData = analysisData.prediction;
+    const reviewData = analysisData.review;
+    
+    console.log(`🔍 [ORCHESTRATOR] Unified response structure:`, {
+      hasAnalysis: !!analysisData,
+      hasPrediction: !!predictionData,
+      hasReview: !!reviewData,
       dataKeys: analysisData ? Object.keys(analysisData) : 'no data'
     });
-    
-    const predictionResponse = await this.callPredictionService(
-      analysisData
-    );
-    console.log('   - Prediction response (preview):', JSON.stringify(predictionResponse, null, 2).slice(0, 1500));
-    const predictionDuration = Date.now() - predictionStartTime;
-    console.log(`✅ Prediction complete (${predictionDuration}ms)`);
-    
-    // Step 3: Generate review
-    console.log("Step 3/3: Generating review comments...");
-    const reviewStartTime = Date.now();
-    
-    let reviewData;
-    try {
-      // Extract the actual analysis data from the response
-      const analysisData = analysisResponse.data || analysisResponse;
-      
-      const reviewResponse = await this.callReviewService(
-        analysisData, // Pass the full analysis data structure
-        predictionResponse.data || predictionResponse,
-        request.code // Pass the actual code for testing
-      );
-      reviewData = reviewResponse;
-    } catch (reviewError: any) {
-      console.error('⚠️  Review generation failed, using fallback:', reviewError.message);
-      // Create a minimal fallback review
-      reviewData = {
-        summary: 'Review generation failed - manual review recommended',
-        riskLevel: 'unknown',
-        shouldMerge: false,
-        issues: [],
-        recommendations: ['Manual review required due to review service failure'],
-        codeQuality: { score: 50, strengths: [], improvementAreas: [] }
-      };
-    }
-    
-    const reviewDuration = Date.now() - reviewStartTime;
-    console.log(`✅ Review complete (${reviewDuration}ms)`);
     
     // Calculate total duration
     const totalDuration = Date.now() - startTime;
@@ -94,14 +79,14 @@ export class OrchestratorService {
     // Combine results with performance metrics
     console.log('📦 Combining all results...');
     const result = this.combineResults(
-      analysisResponse.data,
-      predictionResponse.data,
+      analysisData,
+      predictionData,
       reviewData,
       {
         totalDuration,
         analysisDuration,
-        predictionDuration,
-        reviewDuration
+        predictionDuration: 0, // Included in analysis duration
+        reviewDuration: 0 // Included in analysis duration
       }
     );
     
@@ -285,14 +270,23 @@ private async callAnalysisService(
 
 // Also improve the other service calls similarly:
 
-private async callPredictionService(analysis: any) {
+private async callPredictionService(analysis: any, code?: string, repoContext?: Array<{ path: string; content: string }>) {
   const url = `${servicesConfig.prediction.url}${servicesConfig.prediction.endpoints.predict}`;
+  
+  // Build payload with original code and full codebase context included (same as analysis service)
+  const payload = {
+    ...analysis,
+    originalCode: code || null,  // Include the original PR code
+    repoContext: repoContext || null  // Include the full codebase context (unlimited, like analysis service)
+  };
   
   console.log(`\n📤 [ORCHESTRATOR] Sending data to FAILURE PREDICTION SERVICE:`);
   console.log(`   URL: ${url}`);
   console.log(`   Payload structure:`, {
     fileId: analysis?.fileId || 'missing',
     timestamp: analysis?.timestamp || 'missing',
+    originalCode: code ? `${code.length} characters` : 'not provided',
+    repoContext: repoContext ? `${repoContext.length} files` : 'not provided',
     metrics: analysis?.metrics ? {
       totalLines: analysis.metrics.totalLines,
       cyclomaticComplexity: analysis.metrics.cyclomaticComplexity,
@@ -307,11 +301,18 @@ private async callPredictionService(analysis: any) {
     warnings: analysis?.warnings ? `${analysis.warnings.length} warnings` : 'none',
     recommendations: analysis?.recommendations ? `${analysis.recommendations.length} recommendations` : 'none'
   });
-  console.log(`   Full payload keys:`, Object.keys(analysis || {}));
-  console.log(`   Full payload preview:`, JSON.stringify(analysis, null, 2).substring(0, 1000));
+  console.log(`   Full payload keys:`, Object.keys(payload));
+  
+  // Show preview with code truncated for logging
+  const previewPayload = {
+    ...payload,
+    originalCode: code ? code.substring(0, 500) + '...' : 'not provided',
+    repoContext: repoContext ? `${repoContext.length} files (content truncated in preview)` : 'not provided'
+  };
+  console.log(`   Full payload preview:`, JSON.stringify(previewPayload, null, 2).substring(0, 1000));
   
   try {
-    const response = await axios.post(url, analysis, { 
+    const response = await axios.post(url, payload, {  // Send payload with code
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json'
@@ -344,7 +345,7 @@ private async callPredictionService(analysis: any) {
   }
 }
   
-  private async callReviewService(analysis: any, prediction: any, code?: string) {
+  private async callReviewService(analysis: any, prediction: any, code?: string, repoContext?: Array<{ path: string; content: string }>) {
   const url = `${servicesConfig.review.url}${servicesConfig.review.endpoints.review}`;
   
   // Transform analysis service response to match review service expected format
@@ -410,7 +411,8 @@ private async callPredictionService(analysis: any) {
       // include rationale so review service can produce issues
       reasoning: prediction.reasoning
     },
-    code: code // Pass the actual code for testing
+    code: code, // Pass the actual PR code
+    repoContext: repoContext || null // Pass the full codebase context (unlimited, like analysis service)
   };
   
   try {
@@ -459,7 +461,8 @@ private async callPredictionService(analysis: any) {
         confidence: reviewPayload.prediction.confidence,
         reasoning: reviewPayload.prediction.reasoning ? `${reviewPayload.prediction.reasoning.substring(0, 100)}...` : 'missing'
       },
-      code: code ? `${code.length} characters` : 'missing'
+      code: code ? `${code.length} characters` : 'missing',
+      repoContext: repoContext ? `${repoContext.length} files` : 'missing'
     });
     console.log(`   Full payload preview:`, JSON.stringify({
       ...reviewPayload,
@@ -721,6 +724,8 @@ private async callPredictionService(analysis: any) {
     if (confidence === 'medium') return 0.85;
     return 0.80;
   }
+
+  
 }
 
 export const orchestratorService = new OrchestratorService();
