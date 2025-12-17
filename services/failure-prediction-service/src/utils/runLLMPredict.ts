@@ -350,8 +350,8 @@ Now analyze:`;
   try {
     console.log("[failure-prediction] Calling Claude API...");
     const response = await client.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 1500,
+      model: "claude-3-haiku-20240307",
+      max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
 
