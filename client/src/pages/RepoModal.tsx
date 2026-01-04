@@ -95,45 +95,30 @@ export default function RepoModal({ open, onClose, repo }: RepoModalProps) {
                     <h5 className="font-medium text-foreground truncate">
                       {pr.title}
                     </h5>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {pr.author} •{" "}
-                      {pr.createdAt
-                        ? new Date(pr.createdAt).toLocaleDateString()
-                        : "Unknown date"}
-                    </p>
+
                   </div>
 
                   <div className="flex items-center space-x-4 text-sm">
                     <div className="text-right">
                       <p className="font-medium">
-                        {pr.riskScore !== null && pr.riskScore !== undefined
+         {pr.riskScore !== null && pr.riskScore !== undefined
                           ? `${(pr.riskScore * 100).toFixed(0)}%`
-                          : "N/A"}
-                      </p>
-                      <p className="text-muted-foreground">Risk score</p>
+                          : "N/A"}                      </p>
+                      <p className="text-muted-foreground">Risk Score (s)</p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium">
-                        {pr.analysisDuration ?? "-"}
-                      </p>
-                      <p className="text-muted-foreground">Duration (s)</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">
-                        {pr.predictedFailure ? "Yes" : "No"}
+                        {pr.riskScore ?? "No Data"}
                       </p>
                       <p className="text-muted-foreground">Predicted</p>
                     </div>
                     <div className="text-right">
                       <p className="font-medium">
-                        {pr.actualFailure ? "Yes" : "No"}
+                        {pr.status ? pr.status?.charAt(0).toUpperCase() + pr.status?.slice(1) : "No Data"}
                       </p>
                       <p className="text-muted-foreground">Actual</p>
                     </div>
-                    <div>
-                      <p className="font-medium">{pr.rating ?? "-"}</p>
-                      <p className="text-muted-foreground">Rating</p>
-                    </div>
+  
                     <div>
                       <Button
                         size="sm"

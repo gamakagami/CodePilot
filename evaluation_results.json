@@ -1,0 +1,12 @@
+{
+  "total_samples": 50,
+  "accuracy": 0.92,
+  "precision": 0.9473684210526315,
+  "recall": 0.8571428571428571,
+  "f1_score": 0.9,
+  "true_negatives": 28,
+  "false_positives": 1,
+  "false_negatives": 3,
+  "true_positives": 18,
+  "misclassified_count": 4
+}
