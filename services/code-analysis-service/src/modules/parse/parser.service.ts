@@ -16,9 +16,9 @@ export class ParserService {
     
     try {
       this.parser.setLanguage(TypeScript.typescript);
-      console.log("✅ Tree-sitter TypeScript parser initialized successfully");
+      console.log("Tree-sitter TypeScript parser initialized successfully");
     } catch (error) {
-      console.error("❌ Failed to initialize Tree-sitter parser:", error);
+      console.error("Failed to initialize Tree-sitter parser:", error);
       throw error;
     }
   }
@@ -45,7 +45,7 @@ export class ParserService {
         return null;
       }
 
-      console.log(`✅ Successfully parsed code. Root node type: ${tree.rootNode.type}`);
+      console.log(`Successfully parsed code. Root node type: ${tree.rootNode.type}`);
 
       return {
         ast: tree.rootNode.toString(),
@@ -108,7 +108,7 @@ export class ParserService {
       const uniqueImports = [...new Set(allImports)];
       const uniqueFunctions = this.deduplicateFunctions(allFunctions);
 
-      console.log(`✅ Chunked parsing complete: ${successfulChunks}/${chunks.length} chunks successful`);
+      console.log(`Chunked parsing complete: ${successfulChunks}/${chunks.length} chunks successful`);
       console.log(`   Total (deduplicated): ${uniqueFunctions.length} functions, ${uniqueImports.length} imports`);
 
       return {

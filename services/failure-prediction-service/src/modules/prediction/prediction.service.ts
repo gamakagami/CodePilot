@@ -124,7 +124,7 @@ class PredictionService {
     const result = await runLLMPredict(enhancedPayload);
     
     console.log(
-      `✅ [PREDICTION] Prediction complete: ${result.predicted_failure ? "⚠️ FAIL" : "✓ PASS"} (${(
+      `[PREDICTION] Prediction complete: ${result.predicted_failure ? "⚠️ FAIL" : "✓ PASS"} (${(
         result.failure_probability * 100
       ).toFixed(1)}% probability)`
     );
@@ -150,7 +150,7 @@ class PredictionService {
           avgFunctionComplexity: enhancedPayload.avg_function_complexity
         }
       });
-      console.log("💾 [PREDICTION] Prediction stored in database");
+      console.log("[PREDICTION] Prediction stored in database");
     } catch (err: any) {
       // Database storage is optional - log warning but don't fail the prediction
       if (err.message?.includes("does not exist") || err.message?.includes("table")) {
@@ -165,7 +165,7 @@ class PredictionService {
   }
 
   async getHistory(developer: string, limit: number = 10) {
-    console.log(`📜 [PREDICTION] Fetching history for developer: ${developer} (limit: ${limit})`);
+    console.log(`[PREDICTION] Fetching history for developer: ${developer} (limit: ${limit})`);
     
     try {
       const history = await prisma.prediction.findMany({
@@ -174,11 +174,11 @@ class PredictionService {
         take: limit
       });
       
-      console.log(`✅ [PREDICTION] Found ${history.length} predictions`);
+      console.log(`[PREDICTION] Found ${history.length} predictions`);
       return history;
     } catch (err: any) {
       if (err.message?.includes("does not exist") || err.message?.includes("table")) {
-        console.warn("⚠️ [PREDICTION] Database table not found - returning empty history");
+        console.warn("[PREDICTION] Database table not found - returning empty history");
         return [];
       }
       throw err;
@@ -186,7 +186,7 @@ class PredictionService {
   }
 
   async getStats() {
-    console.log("📊 [PREDICTION] Calculating statistics...");
+    console.log("[PREDICTION] Calculating statistics...");
     
     try {
       const total = await prisma.prediction.count();
@@ -207,11 +207,11 @@ class PredictionService {
           avgProbability._avg.failureProbability?.toFixed(3) || "0"
       };
       
-      console.log("✅ [PREDICTION] Statistics calculated:", stats);
+      console.log("[PREDICTION] Statistics calculated:", stats);
       return stats;
     } catch (err: any) {
       if (err.message?.includes("does not exist") || err.message?.includes("table")) {
-        console.warn("⚠️ [PREDICTION] Database table not found - returning default stats");
+        console.warn("[PREDICTION] Database table not found - returning default stats");
         return {
           totalPredictions: 0,
           failedPredictions: 0,

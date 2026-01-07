@@ -167,7 +167,7 @@ export class EmbeddingService {
     const existing = await embedIndex.fetch([hash]);
 
 if (existing.records && existing.records[hash]) {
-  console.log("♻️ Embedding already exists, using cache");
+  console.log("Embedding already exists, using cache");
   return { id: hash, stored: false, cached: true };
 }
 

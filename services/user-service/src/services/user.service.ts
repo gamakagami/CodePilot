@@ -654,36 +654,36 @@ export const storePullRequestAnalysis = async (prId: number, result: any) => {
     await tx.reviewComment.deleteMany({
       where: { pullRequestId: prId }
     });
-    console.log('🗑️  [USER SERVICE] Old review comments cleared');
+    console.log('[USER SERVICE] Old review comments cleared');
 
-    // ✅ Create new review comments from issues
-    console.log('🔍 [USER SERVICE] Attempting to create review comments...');
+    // Create new review comments from issues
+    console.log('[USER SERVICE] Attempting to create review comments...');
     
     if (!review) {
-      console.log('❌ [USER SERVICE] Review object is null/undefined');
+      console.log('[USER SERVICE] Review object is null/undefined');
       return updatedPr;
     }
     
     if (!review.issues) {
-      console.log('❌ [USER SERVICE] Review.issues is null/undefined');
+      console.log('[USER SERVICE] Review.issues is null/undefined');
       return updatedPr;
     }
     
     if (!Array.isArray(review.issues)) {
-      console.log('❌ [USER SERVICE] Review.issues is not an array, it is:', typeof review.issues);
+      console.log('[USER SERVICE] Review.issues is not an array, it is:', typeof review.issues);
       return updatedPr;
     }
 
     const issueCount = review.issues.length;
-    console.log(`📝 [USER SERVICE] Found ${issueCount} issues in review`);
+    console.log(`[USER SERVICE] Found ${issueCount} issues in review`);
 
     if (issueCount === 0) {
-      console.log('ℹ️  [USER SERVICE] Issues array is empty - no comments to create');
+      console.log('ℹ[USER SERVICE] Issues array is empty - no comments to create');
       return updatedPr;
     }
 
     // Filter out any invalid issues
-    console.log('🔍 [USER SERVICE] Validating issues...');
+    console.log('[USER SERVICE] Validating issues...');
     const validIssues = review.issues.filter((issue: any, index: number) => {
       const isValid = issue && 
                      typeof issue === 'object' && 
@@ -691,23 +691,23 @@ export const storePullRequestAnalysis = async (prId: number, result: any) => {
                      issue.description;
       
       if (!isValid) {
-        console.warn(`⚠️  [USER SERVICE] Issue #${index} is invalid:`, JSON.stringify(issue));
+        console.warn(`[USER SERVICE] Issue #${index} is invalid:`, JSON.stringify(issue));
       } else {
-        console.log(`✅ [USER SERVICE] Issue #${index} is valid: "${issue.title}"`);
+        console.log(`[USER SERVICE] Issue #${index} is valid: "${issue.title}"`);
       }
       
       return isValid;
     });
 
-    console.log(`✅ [USER SERVICE] Found ${validIssues.length} valid issues out of ${issueCount}`);
+    console.log(`[USER SERVICE] Found ${validIssues.length} valid issues out of ${issueCount}`);
 
     if (validIssues.length === 0) {
-      console.log('⚠️  [USER SERVICE] No valid issues to create comments for');
+      console.log('[USER SERVICE] No valid issues to create comments for');
       return updatedPr;
     }
 
     // Create the comments
-    console.log(`💾 [USER SERVICE] Creating ${validIssues.length} review comments in database...`);
+    console.log(`[USER SERVICE] Creating ${validIssues.length} review comments in database...`);
     
     try {
       await tx.reviewComment.createMany({
@@ -726,9 +726,9 @@ export const storePullRequestAnalysis = async (prId: number, result: any) => {
           return comment;
         })
       });
-      console.log(`✅ [USER SERVICE] Successfully created ${validIssues.length} review comments in database!`);
+      console.log(`[USER SERVICE] Successfully created ${validIssues.length} review comments in database!`);
     } catch (error: any) {
-      console.error('❌ [USER SERVICE] Failed to create review comments:', error.message);
+      console.error('[USER SERVICE] Failed to create review comments:', error.message);
       throw error;
     }
 

@@ -14,7 +14,7 @@ export class ParserController {
         });
       }
 
-      console.log(`\n📝 Received parse request with ${code.length} characters`);
+      console.log(`\nReceived parse request with ${code.length} characters`);
       console.log(`First 100 chars: ${code.substring(0, 100)}...`);
 
       const result = parserService.parseCode(code);

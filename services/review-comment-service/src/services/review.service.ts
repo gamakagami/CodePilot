@@ -616,7 +616,7 @@ Return only valid JSON.`;
 
     // Medium/Low issues
     if (medium.length > 0 || low.length > 0) {
-      comment += `### 📝 Suggestions for Improvement\n\n`;
+      comment += `### Suggestions for Improvement\n\n`;
       [...medium, ...low].forEach((issue, i) => {
         comment += `${i + 1}. **${issue.title}** (${issue.severity})\n`;
         comment += `   - ${issue.description}\n\n`;

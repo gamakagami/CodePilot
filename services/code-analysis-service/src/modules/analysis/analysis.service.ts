@@ -214,7 +214,7 @@ class AnalysisService {
       }
       
       codeString = finalLines.join('\n');
-      console.log(`🔍 [ANALYSIS] Extracted ${finalLines.length} lines from diff format before parsing`);
+      console.log(`ANALYSIS Extracted ${finalLines.length} lines from diff format before parsing`);
     }
     
     console.log(`Code type: ${typeof input.code}, length: ${codeString.length}`);
@@ -574,13 +574,13 @@ class AnalysisService {
       }
       
       cleanCode = finalLines.join('\n');
-      console.log(`🔍 [ANALYSIS] Detected diff format in detectMERNPatterns, extracted ${finalLines.length} lines from diff`);
+      console.log(`[ANALYSIS] Detected diff format in detectMERNPatterns, extracted ${finalLines.length} lines from diff`);
     } else {
       // Clean code from diff markers if present (fallback)
       cleanCode = code.replace(/^[\+\-]\s*/gm, '').trim();
     }
     
-    console.log(`🔍 [ANALYSIS] Detecting MERN patterns in code (${cleanCode.length} chars, original: ${code.length} chars)`);
+    console.log(`[ANALYSIS] Detecting MERN patterns in code (${cleanCode.length} chars, original: ${code.length} chars)`);
 
     // Error handling detection
     const hasErrorHandling = this.checkErrorHandling(cleanCode);
@@ -636,7 +636,7 @@ class AnalysisService {
     // Use cleanCode to analyze (without diff markers)
     const variableDetection = this.detectVariableIssues(cleanCode, parsed);
     
-    console.log(`🔍 [ANALYSIS] Variable detection results:`);
+    console.log(`[ANALYSIS] Variable detection results:`);
     console.log(`   - Undeclared variables: ${variableDetection.undeclaredVariables.length}`);
     if (variableDetection.undeclaredVariables.length > 0) {
       console.log(`   - Found: ${variableDetection.undeclaredVariables.map(v => v.name).join(', ')}`);
@@ -761,7 +761,7 @@ class AnalysisService {
       }
       
       codeToAnalyze = finalLines.join('\n');
-      console.log(`🔍 [ANALYSIS] Detected diff format, extracted ${finalLines.length} lines from diff`);
+      console.log(`[ANALYSIS] Detected diff format, extracted ${finalLines.length} lines from diff`);
       console.log(`   - Sample extracted code: ${codeToAnalyze.substring(0, 200)}...`);
     }
     

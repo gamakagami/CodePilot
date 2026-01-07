@@ -159,11 +159,11 @@ class AnalysisController {
       };
 
       // Step 2: Run failure prediction (using analysis data)
-      console.log("🔮 [ANALYSIS] Running failure prediction...");
+      console.log("[ANALYSIS] Running failure prediction...");
       let predictionResult;
       try {
         predictionResult = await predictFailure(response.data);
-        console.log("✅ [ANALYSIS] Prediction complete");
+        console.log("[ANALYSIS] Prediction complete");
       } catch (error: any) {
         console.error("⚠️ [ANALYSIS] Prediction failed:", error.message);
         predictionResult = {
@@ -176,7 +176,7 @@ class AnalysisController {
       }
 
       // Step 3: Generate review (using analysis + prediction)
-      console.log("📝 [ANALYSIS] Generating review...");
+      console.log("[ANALYSIS] Generating review...");
       let reviewResult;
       try {
         reviewResult = await generateReview({
