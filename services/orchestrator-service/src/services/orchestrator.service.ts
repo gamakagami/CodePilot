@@ -28,7 +28,7 @@ export class OrchestratorService {
     }));
     
     if (repoContext.length > 50) {
-      console.log(`⚠️ [ORCHESTRATOR] Repo context limited from ${repoContext.length} to 50 files`);
+      console.log(`[ORCHESTRATOR] Repo context limited from ${repoContext.length} to 50 files`);
     }
     
     return processedFiles;
@@ -46,7 +46,7 @@ export class OrchestratorService {
   try {
     console.log("Starting PR analysis pipeline...");
 
-    // 🔍 DIAGNOSTIC: Log context size
+    // Log context size
     console.log('ORCHESTRATOR Received analysis request:');
     console.log(`   - Code length: ${request.code?.length || 0}`);
     console.log(`   - Repo Context: ${request.repoContext?.length || 0} files included`);
@@ -177,7 +177,7 @@ private async callAnalysisService(
 ) {
 
   console.log(
-  "🔍 [ORCHESTRATOR] Analysis URL:",
+  "[ORCHESTRATOR] Analysis URL:",
   servicesConfig.analysis.url
 );
 
@@ -471,7 +471,7 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     
     const response = await axios.post(url, reviewPayload, { timeout: 60000 });
     
-    console.log('🔍 [ORCHESTRATOR] Review service responded');
+    console.log('[ORCHESTRATOR] Review service responded');
     console.log('   - Response keys:', Object.keys(response.data));
     
     // Log the full structure for debugging
@@ -532,7 +532,7 @@ private async callPredictionService(analysis: any, code?: string, repoContext?: 
     console.log('   - Risk level:', reviewData.riskLevel);
     console.log('   - Should merge:', reviewData.shouldMerge);
     
-    // 🔍 DIAGNOSTIC: Log first issue if exists
+    // Log first issue if exists
     if (Array.isArray(reviewData.issues) && reviewData.issues.length > 0) {
       console.log('   - First issue structure:');
       console.log(JSON.stringify(reviewData.issues[0], null, 2));

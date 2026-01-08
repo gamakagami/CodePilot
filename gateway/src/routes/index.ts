@@ -9,20 +9,20 @@ const router = Router();
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL;
 
-// AUTH SERVICE (public)
+// auth service (public)
 router.use(
   "/auth",
   createProxyMiddleware({
     target: AUTH_SERVICE_URL,
     changeOrigin: true,
     pathRewrite: {
-      "^/auth": "/auth", // /api is already stripped
+      "^/auth": "/auth",
     },
     logger: console,
-  } as any) // 👈 bypasses strict type inference
+  } as any)
 );
 
-// USER SERVICE (protected)
+// user service (protected)
 router.use(
   "/users",
   requireAuth,
@@ -64,7 +64,7 @@ router.use(
         });
       }
     },
-  } as any) // 👈 bypasses strict type inference
+  } as any)
 );
 
 export default router;

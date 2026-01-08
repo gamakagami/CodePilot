@@ -56,10 +56,8 @@ class AnalysisController {
           fileId: result.fileId,
           timestamp: result.timestamp,
           
-          // IMPORTANT: Include original code for prediction service
+          // Include contexts
           originalCode: code,
-          
-          // IMPORTANT: Include repoContext so prediction service gets the same codebase
           repoContext: repoContext || [],
           
           // Code structure
@@ -86,7 +84,7 @@ class AnalysisController {
             impactRadius: result.dependencies.impactRadius
           },
 
-          // MERN-specific patterns - expanded
+          // MERN-specific patterns
           mernPatterns: {
             // Error handling
             errorHandling: {
@@ -105,7 +103,7 @@ class AnalysisController {
               usesStatusCodesCorrectly: result.mernPatterns.usesStatusCodesCorrectly
             },
 
-            // MongoDB/Mongoose patterns
+            // MongoDB patterns
             database: {
               usesMongoDB: result.mernPatterns.usesMongoDB,
               usesMongoose: result.mernPatterns.usesMongoose,
@@ -141,7 +139,7 @@ class AnalysisController {
             metadata: pattern.metadata
           })),
 
-          // ML prediction features
+          // Prediction features
           predictionFeatures: result.predictionFeatures,
 
           // Analysis warnings
@@ -158,7 +156,7 @@ class AnalysisController {
         }
       };
 
-      // Step 2: Run failure prediction (using analysis data)
+      // Run failure prediction (using analysis data)
       console.log("[ANALYSIS] Running failure prediction...");
       let predictionResult;
       try {
@@ -175,7 +173,7 @@ class AnalysisController {
         };
       }
 
-      // Step 3: Generate review (using analysis + prediction)
+      // Generate review (using analysis + prediction)
       console.log("[ANALYSIS] Generating review...");
       let reviewResult;
       try {
@@ -239,11 +237,8 @@ class AnalysisController {
     }
   };
 
-  /**
-   * Build context object for prediction service
-   */
+   // Build context object for prediction service
   private buildContext(result: any): any {
-    // Extract variables from functions
     const variables = new Set<string>();
     const functions = new Set<string>();
     const hooks = new Set<string>();
@@ -256,14 +251,12 @@ class AnalysisController {
         const importMatch = imp.match(/import\s+(?:{([^}]+)}|(\w+))\s+from/);
         if (importMatch) {
           if (importMatch[1]) {
-            // Named imports: { useState, useEffect }
             importMatch[1].split(',').forEach(name => {
               const cleanName = name.trim();
               imports.add(cleanName);
               if (cleanName.startsWith('use')) hooks.add(cleanName);
             });
           } else if (importMatch[2]) {
-            // Default import: React
             imports.add(importMatch[2].trim());
           }
         }
@@ -289,7 +282,7 @@ class AnalysisController {
         // Extract regular const/let/var declarations
         const varMatches = fn.matchAll(/(?:const|let|var)\s+(\w+)\s*=/g);
         for (const match of varMatches) {
-          if (!match[0].includes('[')) { // Skip destructuring
+          if (!match[0].includes('[')) { 
             variables.add(match[1]);
           }
         }
@@ -355,7 +348,7 @@ class AnalysisController {
       typeMismatches: []
     };
 
-    // Build available scope from the ORIGINAL CODE
+    // Build available scope
     const availableVars = new Set<string>();
     const availableFuncs = new Set<string>();
     const availableImports = new Set<string>();
@@ -364,10 +357,8 @@ class AnalysisController {
     const importMatches = originalCode.matchAll(/import\s+(?:{([^}]+)}|(\w+))\s+from\s+['"]([^'"]+)['"]/g);
     for (const match of importMatches) {
       if (match[1]) {
-        // Named imports: { useState, useEffect }
         match[1].split(',').forEach(name => availableImports.add(name.trim()));
       } else if (match[2]) {
-        // Default import: React
         availableImports.add(match[2].trim());
       }
     }

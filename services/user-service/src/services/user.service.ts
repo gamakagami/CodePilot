@@ -304,7 +304,7 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
     });
 
     if (repoFiles.length > 0) {
-      console.log(`📦 Storing ${repoFiles.length} files in Neo4j for ${repositoryFullName}...`);
+      console.log(`Storing ${repoFiles.length} files in Neo4j for ${repositoryFullName}...`);
 
       const codeAnalysisUrl = process.env.CODE_ANALYSIS_SERVICE_URL || "http://localhost:5003";
 
@@ -320,12 +320,12 @@ export const syncSingleRepository = async (userId: string, repoName: string) => 
         { timeout: 120000 }
       );
 
-      console.log(`✅ Successfully stored repository context in Neo4j`);
+      console.log(`Successfully stored repository context in Neo4j`);
     } else {
-      console.log(`⚠️ No files to store in Neo4j for ${repositoryFullName}`);
+      console.log(`No files to store in Neo4j for ${repositoryFullName}`);
     }
   } catch (error: any) {
-    console.error(`⚠️ Failed to store repository context in Neo4j:`, error.message);
+    console.error(`Failed to store repository context in Neo4j:`, error.message);
   }
 
   return getProfile(userId);
@@ -546,7 +546,7 @@ export const getAverageAnalysisDuration = async () => {
 
 export const storePullRequestAnalysis = async (prId: number, result: any) => {
   return prisma.$transaction(async (tx) => {
-    console.log('🔍 [USER SERVICE] storePullRequestAnalysis called for PR:', prId);
+    console.log('[USER SERVICE] storePullRequestAnalysis called for PR:', prId);
     
     const pr = await tx.pullRequest.findUnique({
       where: { id: prId },
@@ -555,53 +555,53 @@ export const storePullRequestAnalysis = async (prId: number, result: any) => {
 
     if (!pr) throw new Error("Pull request not found");
 
-    // ✅ Validate result exists
+    // Validate result exists
     if (!result || typeof result !== 'object') {
-      console.error('❌ [USER SERVICE] Invalid result:', result);
+      console.error('[USER SERVICE] Invalid result:', result);
       throw new Error('Invalid analysis result: result is null or not an object');
     }
 
-    // 🔍 DEBUG: Log to understand the structure
+    // Log to understand the structure
     const resultKeys = Object.keys(result);
-    console.log('🔍 [USER SERVICE] Result keys:', resultKeys);
+    console.log('[USER SERVICE] Result keys:', resultKeys);
     
     if (resultKeys.length === 0) {
-      console.error('❌ [USER SERVICE] Result object is empty');
+      console.error('[USER SERVICE] Result object is empty');
       throw new Error('Invalid analysis result: result object is empty');
     }
 
     // Show structure safely
     try {
       const structurePreview = JSON.stringify(result, null, 2).substring(0, 800);
-      console.log('🔍 [USER SERVICE] Result structure preview:', structurePreview);
+      console.log('[USER SERVICE] Result structure preview:', structurePreview);
     } catch (e) {
-      console.log('⚠️  [USER SERVICE] Could not stringify result');
+      console.log('[USER SERVICE] Could not stringify result');
     }
 
-    // ✅ Safely extract data with null checks
+    // extract data with null checks
     const analysis = result.analysis || {};
     const prediction = result.prediction || {};
     const review = result.review || {};
     const performance = result.performance || {};
 
-    console.log('🔍 [USER SERVICE] Extracted components:');
-    console.log('   - analysis:', !!analysis, '(has metrics:', !!analysis.metrics, ')');
-    console.log('   - prediction:', !!prediction, '(failure_probability:', prediction.failure_probability, ')');
-    console.log('   - review:', !!review, '(has summary:', !!review.summary, ')');
-    console.log('   - performance:', !!performance);
+    console.log('[USER SERVICE] Extracted components:');
+    console.log('analysis:', !!analysis, '(has metrics:', !!analysis.metrics, ')');
+    console.log('prediction:', !!prediction, '(failure_probability:', prediction.failure_probability, ')');
+    console.log('review:', !!review, '(has summary:', !!review.summary, ')');
+    console.log('performance:', !!performance);
 
-    // 🔍 CRITICAL: Check review.issues specifically
-    console.log('🔍 [USER SERVICE] Review issues analysis:');
-    console.log('   - review object exists:', !!review);
-    console.log('   - has "issues" property:', 'issues' in review);
-    console.log('   - issues is array:', Array.isArray(review.issues));
-    console.log('   - issues count:', review.issues?.length || 0);
+    // Check review.issues specifically
+    console.log('[USER SERVICE] Review issues analysis:');
+    console.log('review object exists:', !!review);
+    console.log('has "issues" property:', 'issues' in review);
+    console.log('issues is array:', Array.isArray(review.issues));
+    console.log('issues count:', review.issues?.length || 0);
     
     if (review.issues && Array.isArray(review.issues) && review.issues.length > 0) {
-      console.log('   - First issue keys:', Object.keys(review.issues[0]));
-      console.log('   - First issue:', JSON.stringify(review.issues[0], null, 2));
+      console.log('First issue keys:', Object.keys(review.issues[0]));
+      console.log('First issue:', JSON.stringify(review.issues[0], null, 2));
     } else {
-      console.log('   ⚠️  No issues in review object');
+      console.log('No issues in review object');
     }
 
     // Update the pull request with analysis results
@@ -624,7 +624,7 @@ export const storePullRequestAnalysis = async (prId: number, result: any) => {
       }
     });
 
-    console.log('✅ [USER SERVICE] Pull request updated with analysis data');
+    console.log('[USER SERVICE] Pull request updated with analysis data');
 
     // Calculate failure rate for the repository
     const allPrs = await tx.pullRequest.findMany({
@@ -639,7 +639,7 @@ export const storePullRequestAnalysis = async (prId: number, result: any) => {
     if (allPrs.length > 0) {
       const failures = allPrs.filter((p) => p.actualFailure === true).length;
       failureRate = failures / allPrs.length;
-      console.log(`📊 [USER SERVICE] Repository failure rate: ${(failureRate * 100).toFixed(1)}% (${failures}/${allPrs.length})`);
+      console.log(`[USER SERVICE] Repository failure rate: ${(failureRate * 100).toFixed(1)}% (${failures}/${allPrs.length})`);
     }
 
     await tx.repository.update({

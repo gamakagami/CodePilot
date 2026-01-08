@@ -9,7 +9,7 @@ interface ParseResult {
 
 export class ParserService {
   private parser: Parser;
-  private readonly MAX_PARSE_SIZE = 10000; // Smaller: 10KB per chunk
+  private readonly MAX_PARSE_SIZE = 10000;
 
   constructor() {
     this.parser = new Parser();

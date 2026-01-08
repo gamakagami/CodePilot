@@ -46,7 +46,7 @@ class Semaphore {
   }
 }
 
-// 🔥 Only ONE Cohere request at a time
+// Only ONE Cohere request at a time
 const embedSemaphore = new Semaphore(1);
 
 /* ================================
@@ -90,17 +90,17 @@ export class EmbeddingService {
 
     } catch (err: any) {
       if (err?.statusCode === 429 && retries > 0) {
-        console.warn("⚠️ Cohere rate limit hit, retrying...");
+        console.warn("Cohere rate limit hit, retrying...");
         await sleep(this.RETRY_DELAY_MS);
         return this.generateEmbedding(text, retries - 1);
       }
 
       if (err?.statusCode === 429) {
-        console.warn("⏭️ Skipping embedding due to persistent rate limit");
+        console.warn("Skipping embedding due to persistent rate limit");
         return null; // SOFT FAIL
       }
 
-      console.error("❌ Embedding generation failed:", err);
+      console.error("Embedding generation failed:", err);
       throw err;
 
     } finally {
@@ -139,17 +139,17 @@ export class EmbeddingService {
 
     } catch (err: any) {
       if (err?.statusCode === 429 && retries > 0) {
-        console.warn("⚠️ Cohere rate limit hit (batch), retrying...");
+        console.warn("Cohere rate limit hit (batch), retrying...");
         await sleep(this.RETRY_DELAY_MS);
         return this.generateEmbeddings(texts, retries - 1);
       }
 
       if (err?.statusCode === 429) {
-        console.warn("⏭️ Skipping batch embedding due to persistent rate limit");
+        console.warn("Skipping batch embedding due to persistent rate limit");
         return null;
       }
 
-      console.error("❌ Batch embedding failed:", err);
+      console.error("Batch embedding failed:", err);
       throw err;
 
     } finally {
@@ -163,7 +163,7 @@ export class EmbeddingService {
   async storeEmbedding(id: string, text: string) {
     const hash = hashText(text);
 
-    // 🔁 Cache check (VERY important)
+    // Cache check
     const existing = await embedIndex.fetch([hash]);
 
 if (existing.records && existing.records[hash]) {

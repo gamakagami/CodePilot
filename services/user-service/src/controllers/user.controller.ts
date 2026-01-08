@@ -134,7 +134,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     }
 
     // 3. Fetch ALL repository files from GitHub (full codebase, not just stored files)
-    console.log(`📥 Fetching full codebase from GitHub for ${userProfile.githubUsername}/${repo.name}...`);
+    console.log(`Fetching full codebase from GitHub for ${userProfile.githubUsername}/${repo.name}...`);
     
     const repoInfo = await axios.get(
       `https://api.github.com/repos/${userProfile.githubUsername}/${repo.name}`,
@@ -199,12 +199,12 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
           content: content
         });
       } catch (error: any) {
-        console.warn(`⚠️ Failed to fetch content for ${file.path}: ${error.message}`);
+        console.warn(`Failed to fetch content for ${file.path}: ${error.message}`);
         // Continue with other files even if one fails
       }
     }
 
-    console.log(`✅ Fetched ${repoContext.length} files from GitHub (full codebase)`);
+    console.log(`Fetched ${repoContext.length} files from GitHub (full codebase)`);
 
     // 4. Prepare Orchestrator Payload with Full Repository Context
     const orchestratorPayload = {
@@ -216,7 +216,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
       repoContext: repoContext
     };
 
-    console.log(`📤 Sending PR #${pr.number} with ${repoContext.length} context files (full codebase from GitHub)...`);
+    console.log(`Sending PR #${pr.number} with ${repoContext.length} context files (full codebase from GitHub)...`);
 
     // 5. Call orchestrator
     const response = await axios.post(
@@ -228,7 +228,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
       }
     );
 
-    console.log('📥 Orchestrator response received');
+    console.log('Orchestrator response received');
     console.log('Response structure:', JSON.stringify({
       success: response.data.success,
       hasData: !!response.data.data,
@@ -252,22 +252,22 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
 
     // Validate result has required fields
     if (!result.analysis || !result.prediction || !result.review) {
-      console.warn('⚠️ Incomplete orchestrator response:', {
+      console.warn('Incomplete orchestrator response:', {
         hasAnalysis: !!result.analysis,
         hasPrediction: !!result.prediction,
         hasReview: !!result.review
       });
     }
 
-    console.log('💾 Storing analysis results...');
+    console.log('Storing analysis results...');
 
     // Step 6: Store the analysis
     await userService.storePullRequestAnalysis(prId, result);
     
-    console.log('✅ Analysis stored successfully');
+    console.log('Analysis stored successfully');
 
     // Step 8: Fetch and store changed files (for display purposes)
-    console.log('📂 Fetching changed files from GitHub...');
+    console.log('Fetching changed files from GitHub...');
     
     const filesResponse = await axios.get(
       `https://api.github.com/repos/${userProfile.githubUsername}/${repo.name}/pulls/${pr.number}/files`,
@@ -280,7 +280,7 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
     );
 
     const files = filesResponse.data;
-    console.log(`📄 Found ${files.length} changed files`);
+    console.log(`Found ${files.length} changed files`);
 
     // Clear old files and add new ones
     await prisma.changedFile.deleteMany({ where: { pullRequestId: prId } });
@@ -296,15 +296,15 @@ export const submitPullRequest = async (req: AuthenticatedRequest, res: Response
           pullRequestId: prId
         }))
       });
-      console.log('✅ Changed files stored');
+      console.log('Changed files stored');
     }
 
-    console.log('🎉 PR submission complete!');
+    console.log('PR submission complete!');
 
     return res.json({ success: true, analysis: response.data.data });
 
   } catch (err: any) {
-    console.error("❌ SUBMIT ERROR:", err.message);
+    console.error("SUBMIT ERROR:", err.message);
     return res.status(500).json({ error: "Failed to submit PR", details: err.message });
   }
 };
